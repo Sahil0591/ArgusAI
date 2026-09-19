@@ -9,6 +9,7 @@ import { EscalationQueue } from "@/components/manager/EscalationQueue";
 import { LiveFeed } from "@/components/dashboard/LiveFeed";
 import { AssessmentGrid } from "@/components/dashboard/AssessmentGrid";
 import { DeliveryFilter } from "@/components/dashboard/DeliveryFilter";
+import { DeliveriesHistory } from "@/components/dashboard/DeliveriesHistory";
 import type { AssessmentFeedItem, DeliverySummary, EscalationView } from "@/lib/types";
 
 const REFRESH_ON = new Set([
@@ -127,6 +128,7 @@ export default function DashboardPage() {
       </div>
       <EscalationQueue escalations={escalations} onDecide={handleDecide} />
       <AssessmentGrid items={assessmentFeed} />
+      <DeliveriesHistory deliveries={deliveries} />
       <LiveFeed events={feedEvents} />
     </main>
   );

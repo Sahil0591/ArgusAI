@@ -130,6 +130,8 @@ class Store:
                     delivery_id TEXT NOT NULL,
                     discrepancy_id TEXT NOT NULL,
                     filename TEXT NOT NULL,
+                    content_type TEXT NOT NULL DEFAULT 'image/jpeg',
+                    data BLOB,
                     uploaded_at TEXT NOT NULL DEFAULT (datetime('now'))
                 );
             """)
@@ -172,6 +174,8 @@ class Store:
                 delivery_id TEXT NOT NULL,
                 discrepancy_id TEXT NOT NULL,
                 filename TEXT NOT NULL,
+                content_type TEXT NOT NULL DEFAULT 'image/jpeg',
+                data BYTEA,
                 uploaded_at TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP::text)
             )
             """,
@@ -340,35 +344,39 @@ class Store:
 
     def add_photo(self, photo: Photo) -> Photo:
         self._execute(
-            "INSERT INTO photos (id, delivery_id, discrepancy_id, filename, uploaded_at) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO photos (id, delivery_id, discrepancy_id, filename, content_type, data, uploaded_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (photo.id, photo.delivery_id, photo.discrepancy_id,
-             photo.filename, photo.uploaded_at.isoformat()),
+             photo.filename, photo.content_type, photo.data, photo.uploaded_at.isoformat()),
         )
         self.conn.commit()
         return photo
 
     def get_photos(self, discrepancy_id: str) -> list[Photo]:
         rows = self._fetchall(
-            "SELECT * FROM photos WHERE discrepancy_id = ?", (discrepancy_id,)
+            "SELECT id, delivery_id, discrepancy_id, filename, content_type, uploaded_at FROM photos WHERE discrepancy_id = ?",
+            (discrepancy_id,)
         )
         return [
             Photo(
                 id=r["id"], delivery_id=r["delivery_id"],
                 discrepancy_id=r["discrepancy_id"],
                 filename=r["filename"],
+                content_type=r["content_type"] or "image/jpeg",
                 uploaded_at=self._parse_datetime(r["uploaded_at"]),
             )
             for r in rows
         ]
 
     def get_photo(self, photo_id: str) -> Photo | None:
-        row = self.conn.execute(
+        row = self._fetchone(
             "SELECT * FROM photos WHERE id = ?", (photo_id,)
-        ).fetchone()
+        )
         if not row:
             return None
         return Photo(
             id=row["id"], delivery_id=row["delivery_id"],
             discrepancy_id=row["discrepancy_id"], filename=row["filename"],
-            uploaded_at=datetime.fromisoformat(row["uploaded_at"]),
+            content_type=row["content_type"] or "image/jpeg",
+            data=bytes(row["data"]) if row["data"] else None,
+            uploaded_at=self._parse_datetime(row["uploaded_at"]),
         )

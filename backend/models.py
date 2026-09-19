@@ -210,4 +210,6 @@ class Photo(BaseModel):
     delivery_id: str
     discrepancy_id: str
     filename: str
+    content_type: str = "image/jpeg"
+    data: bytes | None = None
     uploaded_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

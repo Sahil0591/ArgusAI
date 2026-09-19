@@ -311,25 +311,20 @@ async def upload_photo(
     store = get_store()
     service = get_service()
 
-    # Determine photo storage path
-    photos_dir = Path("/data/photos") if os.path.isdir("/data") else Path("photos")
-    photos_dir.mkdir(parents=True, exist_ok=True)
-
-    # Save photo
+    # Read upload
     photo_id = str(uuid.uuid4())
     ext = Path(file.filename or "photo.jpg").suffix or ".jpg"
     filename = f"{photo_id}{ext}"
-    filepath = photos_dir / filename
-
     image_bytes = await file.read()
-    filepath.write_bytes(image_bytes)
 
-    # Record in DB
+    # Store photo bytes directly in DB
     photo = Photo(
         id=photo_id,
         delivery_id=delivery_id,
         discrepancy_id=discrepancy_id,
         filename=filename,
+        content_type=file.content_type or "image/jpeg",
+        data=image_bytes,
     )
     store.add_photo(photo)
 
@@ -457,14 +452,9 @@ async def get_photo(photo_id: str):
     """Serve stored evidence photos to dashboard clients."""
     store = get_store()
     photo = store.get_photo(photo_id)
-    if not photo:
+    if not photo or not photo.data:
         raise HTTPException(status_code=404, detail="Photo not found")
-
-    photos_dir = Path("/data/photos") if os.path.isdir("/data") else Path("photos")
-    filepath = photos_dir / photo.filename
-    if not filepath.is_file():
-        raise HTTPException(status_code=404, detail="Photo file not found")
-    return FileResponse(filepath)
+    return Response(content=photo.data, media_type=photo.content_type)
 
 
 # --- SSE stream ---

@@ -1,0 +1,24 @@
+[project]
+name = "argusai"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Sahil_S", email = "113634764+Sahil0591@users.noreply.github.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.141.1",
+    "google-genai>=2.24.0",
+    "logfire[fastapi]>=5.1.0",
+    "modal>=1.5.5",
+    "pydantic-ai-slim[google]>=2.45.0",
+    "uvicorn>=0.53.0",
+]
+
+[project.scripts]
+argusai = "ArgusAI:main"
+
+[build-system]
+requires = ["uv_build>=0.12.16,<0.13.0"]
+build-backend = "uv_build"

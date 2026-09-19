@@ -1,17 +1,40 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import clsx from "clsx";
+
+const LINKS = [
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/simulator", label: "Simulator" },
+];
 
 export function Nav() {
+  const pathname = usePathname();
+
   return (
-    <nav className="flex items-center gap-4 border-b border-zinc-200 px-4 py-3 text-sm dark:border-zinc-800">
-      <Link href="/" className="font-semibold text-zinc-900 dark:text-zinc-100">
-        ArgusAI
+    <nav className="sticky top-0 z-10 flex items-center gap-1 border-b border-border bg-surface/90 px-4 py-3 backdrop-blur supports-backdrop-filter:bg-surface/70">
+      <Link href="/" className="mr-3 flex items-center gap-2">
+        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-accent text-xs font-bold text-accent-foreground">
+          A
+        </span>
+        <span className="text-sm font-semibold tracking-tight text-foreground">ArgusAI</span>
       </Link>
-      <Link href="/dashboard" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100">
-        Dashboard
-      </Link>
-      <Link href="/simulator" className="text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100">
-        Simulator
-      </Link>
+      {LINKS.map((link) => {
+        const active = pathname === link.href;
+        return (
+          <Link
+            key={link.href}
+            href={link.href}
+            className={clsx(
+              "rounded-md px-2.5 py-1 text-sm transition-colors",
+              active ? "bg-surface-secondary font-medium text-foreground" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {link.label}
+          </Link>
+        );
+      })}
     </nav>
   );
 }

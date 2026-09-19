@@ -5,9 +5,9 @@ import clsx from "clsx";
 import type { EscalationView } from "@/lib/types";
 
 const SEVERITY_STYLES: Record<string, string> = {
-  low: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
-  medium: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
-  high: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+  low: "bg-surface-secondary text-muted-foreground",
+  medium: "bg-warning-bg text-warning",
+  high: "bg-danger-bg text-danger",
 };
 
 export function EscalationCard({
@@ -18,7 +18,7 @@ export function EscalationCard({
   onDecide: (id: string, decision: "accepted" | "rejected") => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
-  const decided = escalation.status !== "pending";
+  const pending = escalation.status === "pending";
 
   const handle = async (decision: "accepted" | "rejected") => {
     setBusy(true);
@@ -30,18 +30,19 @@ export function EscalationCard({
   };
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+    <div
+      className={clsx(
+        "flex flex-col gap-3 rounded-lg border p-4",
+        pending ? "border-warning-border bg-warning-bg/40" : "border-border bg-surface"
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="font-medium text-zinc-900 dark:text-zinc-100">{escalation.material_description}</div>
-          <div className="text-sm text-zinc-500 dark:text-zinc-400">
+          <div className="font-medium text-foreground">{escalation.material_description}</div>
+          <div className="text-sm text-muted-foreground">
             {escalation.discrepancy?.damage_description ?? escalation.discrepancy?.type ?? "Unknown issue"}
             {escalation.discrepancy && (
-              <>
-                {" "}
-                &middot; &euro;
-                {escalation.discrepancy.total_value_eur.toFixed(2)}
-              </>
+              <span className="font-mono tabular-nums"> &middot; &euro;{escalation.discrepancy.total_value_eur.toFixed(2)}</span>
             )}
           </div>
         </div>
@@ -57,31 +58,27 @@ export function EscalationCard({
         )}
       </div>
 
-      {escalation.policy_decision && (
-        <p className="text-sm text-zinc-600 dark:text-zinc-300">{escalation.policy_decision.reason}</p>
-      )}
+      {escalation.policy_decision && <p className="text-sm text-foreground/80">{escalation.policy_decision.reason}</p>}
 
       <div className="flex items-center gap-2">
         <button
           onClick={() => handle("accepted")}
-          disabled={busy || decided}
+          disabled={busy || !pending}
           className={clsx(
-            "flex-1 rounded-full px-4 py-2 text-sm font-medium transition-opacity disabled:opacity-50",
-            escalation.status === "accepted"
-              ? "bg-green-600 text-white"
-              : "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900"
+            "flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-opacity disabled:opacity-60",
+            escalation.status === "accepted" ? "bg-green-600 text-white" : "bg-accent text-accent-foreground"
           )}
         >
           {escalation.status === "accepted" ? "Accepted" : "Accept"}
         </button>
         <button
           onClick={() => handle("rejected")}
-          disabled={busy || decided}
+          disabled={busy || !pending}
           className={clsx(
-            "flex-1 rounded-full border px-4 py-2 text-sm font-medium transition-opacity disabled:opacity-50",
+            "flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-opacity disabled:opacity-60",
             escalation.status === "rejected"
               ? "border-red-600 bg-red-600 text-white"
-              : "border-zinc-300 text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
+              : "border-border text-foreground hover:bg-surface-secondary"
           )}
         >
           {escalation.status === "rejected" ? "Rejected" : "Reject"}

@@ -328,3 +328,12 @@ export interface EscalationView extends Escalation {
   policy_decision: PolicyDecision | null;
   photo_id: string | null;
 }
+
+export interface AssessmentFeedItem {
+  discrepancy_id: string;
+  delivery_id: string;
+  material_description: string;
+  status: "assessing" | "resolved";
+  assessment: DamageAssessment | null;
+  decision: PolicyDecision | null;
+}

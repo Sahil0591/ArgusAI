@@ -10,11 +10,12 @@ export interface LogLineInput {
   pallet_number?: number;
 }
 
-const UNITS = ["EA", "CTN", "PAL"];
+const UNITS = ["EA", "CTN", "PAL", "PC", "PKG"];
+const inputClass = "rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-foreground";
 
-// Stubbed push-to-talk control. Real Gemini Live wiring (mic -> PCM16 ->
-// WSS -> function calls) is deferred until Sahil's backend is live; this
-// lets the whole worker flow be built and demoed without it.
+// Manual entry — the fallback path when voice isn't available or a demo
+// needs a guaranteed-working alternative (see VoiceControl for the primary
+// tap-to-talk flow).
 export function MicButton({ onSubmit }: { onSubmit: (input: LogLineInput) => Promise<void> }) {
   const [description, setDescription] = useState("");
   const [quantity, setQuantity] = useState("");
@@ -44,31 +45,24 @@ export function MicButton({ onSubmit }: { onSubmit: (input: LogLineInput) => Pro
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-        <span className="h-2 w-2 rounded-full bg-red-500" />
-        Push-to-talk (stub &mdash; real voice wired up later)
-      </div>
+    <form onSubmit={handleSubmit} className="space-y-3 rounded-lg border border-border bg-surface p-4">
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Manual entry</div>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <input
-          className="col-span-2 rounded border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className={`col-span-2 ${inputClass}`}
           placeholder="Material, e.g. M8 bolts"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
         <input
-          className="rounded border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className={inputClass}
           placeholder="Qty"
           type="number"
           min="0"
           value={quantity}
           onChange={(e) => setQuantity(e.target.value)}
         />
-        <select
-          className="rounded border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-          value={unit}
-          onChange={(e) => setUnit(e.target.value)}
-        >
+        <select className={inputClass} value={unit} onChange={(e) => setUnit(e.target.value)}>
           {UNITS.map((u) => (
             <option key={u} value={u}>
               {u}
@@ -78,7 +72,7 @@ export function MicButton({ onSubmit }: { onSubmit: (input: LogLineInput) => Pro
       </div>
       <div className="grid grid-cols-2 gap-2">
         <input
-          className="rounded border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className={inputClass}
           placeholder="Pallet #"
           type="number"
           min="0"
@@ -86,7 +80,7 @@ export function MicButton({ onSubmit }: { onSubmit: (input: LogLineInput) => Pro
           onChange={(e) => setPallet(e.target.value)}
         />
         <input
-          className="rounded border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className={inputClass}
           placeholder="Damage noted (optional)"
           value={damage}
           onChange={(e) => setDamage(e.target.value)}
@@ -95,7 +89,7 @@ export function MicButton({ onSubmit }: { onSubmit: (input: LogLineInput) => Pro
       <button
         type="submit"
         disabled={submitting}
-        className="w-full rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-opacity disabled:opacity-50 dark:bg-white dark:text-zinc-900"
+        className="w-full rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-opacity disabled:opacity-50"
       >
         {submitting ? "Logging…" : "Log line"}
       </button>

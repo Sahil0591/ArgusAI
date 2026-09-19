@@ -6,6 +6,7 @@
 import { getPO } from "./po-catalog";
 import type {
   AssessmentCompleteEventData,
+  AssessmentFeedItem,
   DamageReportedEventData,
   Discrepancy,
   DeliveryEvent,
@@ -77,7 +78,7 @@ interface EnrichmentMaps {
   photo: Map<string, string>;
 }
 
-function buildEnrichmentMaps(events: DeliveryEvent[]): EnrichmentMaps {
+export function buildEnrichmentMaps(events: DeliveryEvent[]): EnrichmentMaps {
   const maps: EnrichmentMaps = {
     material: new Map(),
     discrepancy: new Map(),
@@ -110,6 +111,45 @@ function buildEnrichmentMaps(events: DeliveryEvent[]): EnrichmentMaps {
   }
 
   return maps;
+}
+
+// Tracks each discrepancy's photo -> vision -> policy lifecycle for the
+// dashboard's parallel assessment grid: "assessing" from photo_uploaded
+// until a policy_decision lands, then "resolved". Multiple discrepancies
+// naturally interleave here when several photos are in flight at once
+// (e.g. during a scripted simulator run), which is the point.
+export function deriveAssessmentFeed(delivery_id: string, events: DeliveryEvent[]): AssessmentFeedItem[] {
+  const maps = buildEnrichmentMaps(events);
+  const items = new Map<string, AssessmentFeedItem>();
+
+  for (const event of events) {
+    if (event.type === "photo_uploaded") {
+      const data = event.data as unknown as PhotoUploadedEventData;
+      if (!items.has(data.discrepancy_id)) {
+        items.set(data.discrepancy_id, {
+          discrepancy_id: data.discrepancy_id,
+          delivery_id,
+          material_description: maps.material.get(data.discrepancy_id) ?? "Unknown item",
+          status: "assessing",
+          assessment: null,
+          decision: null,
+        });
+      }
+    } else if (event.type === "policy_decision") {
+      const data = event.data as unknown as PolicyDecisionEventData;
+      const existing = items.get(data.discrepancy_id);
+      items.set(data.discrepancy_id, {
+        discrepancy_id: data.discrepancy_id,
+        delivery_id,
+        material_description: existing?.material_description ?? maps.material.get(data.discrepancy_id) ?? "Unknown item",
+        status: "resolved",
+        assessment: maps.assessment.get(data.discrepancy_id) ?? null,
+        decision: { decision: data.decision, reason: data.reason, claim: data.claim },
+      });
+    }
+  }
+
+  return [...items.values()];
 }
 
 // Enrich escalations using the event history of the deliveries they belong

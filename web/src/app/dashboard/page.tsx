@@ -1,12 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/lib/api-client";
 import { useEventStream } from "@/lib/use-event-stream";
 import { useAppStore } from "@/lib/store";
-import { enrichEscalations } from "@/lib/derive";
+import { deriveAssessmentFeed, enrichEscalations } from "@/lib/derive";
 import { EscalationQueue } from "@/components/manager/EscalationQueue";
-import type { EscalationView } from "@/lib/types";
+import { LiveFeed } from "@/components/dashboard/LiveFeed";
+import { AssessmentGrid } from "@/components/dashboard/AssessmentGrid";
+import { DeliveryFilter } from "@/components/dashboard/DeliveryFilter";
+import type { AssessmentFeedItem, DeliverySummary, EscalationView } from "@/lib/types";
 
 const REFRESH_ON = new Set([
   "damage_reported",
@@ -20,22 +23,37 @@ const REFRESH_ON = new Set([
 export default function DashboardPage() {
   useEventStream();
 
+  const [deliveries, setDeliveries] = useState<DeliverySummary[]>([]);
+  const [selectedDelivery, setSelectedDelivery] = useState<string | "all">("all");
   const [escalations, setEscalations] = useState<EscalationView[]>([]);
+  const [assessmentFeed, setAssessmentFeed] = useState<AssessmentFeedItem[]>([]);
 
-  const refresh = useCallback(async () => {
-    const raw = await apiClient.listEscalations();
-    const deliveryIds = [...new Set(raw.map((e) => e.delivery_id))];
-    const details = await Promise.all(deliveryIds.map((id) => apiClient.getDelivery(id).catch(() => null)));
-    const eventsByDeliveryId = Object.fromEntries(
-      details.filter((d): d is NonNullable<typeof d> => d !== null).map((d) => [d.id, d.events])
-    );
-    setEscalations(enrichEscalations(raw, eventsByDeliveryId));
-  }, []);
+  const allStreamEvents = useAppStore((s) => s.events);
+  const feedEvents = useMemo(
+    () => (selectedDelivery === "all" ? allStreamEvents : allStreamEvents.filter((e) => e.delivery_id === selectedDelivery)),
+    [allStreamEvents, selectedDelivery]
+  );
 
   useEffect(() => {
-    // Standard mount-time fetch; react-hooks/set-state-in-effect flags any
-    // effect invoking a useCallback-memoized async setState-er, including
-    // this well-understood pattern.
+    apiClient.listDeliveries().then(setDeliveries).catch(() => {});
+  }, []);
+
+  const refresh = useCallback(async () => {
+    const raw = await apiClient.listEscalations(selectedDelivery === "all" ? undefined : selectedDelivery);
+    const deliveryIds =
+      selectedDelivery === "all" ? [...new Set(raw.map((e) => e.delivery_id))] : [selectedDelivery];
+    const details = await Promise.all(deliveryIds.map((id) => apiClient.getDelivery(id).catch(() => null)));
+    const validDetails = details.filter((d): d is NonNullable<typeof d> => d !== null);
+    const eventsByDeliveryId = Object.fromEntries(validDetails.map((d) => [d.id, d.events]));
+
+    setEscalations(enrichEscalations(raw, eventsByDeliveryId));
+    setAssessmentFeed(validDetails.flatMap((d) => deriveAssessmentFeed(d.id, d.events)));
+  }, [selectedDelivery]);
+
+  useEffect(() => {
+    // Standard mount-time (and filter-change) fetch; react-hooks/set-state-in-effect
+    // flags any effect invoking a useCallback-memoized async setState-er,
+    // including this well-understood pattern.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     refresh().catch(() => {});
   }, [refresh]);
@@ -61,13 +79,18 @@ export default function DashboardPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 px-4 py-6">
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">Manager Dashboard</h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Only exceptions land here &mdash; routine problems resolve automatically.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Manager Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            Only exceptions land here &mdash; routine problems resolve automatically.
+          </p>
+        </div>
+        <DeliveryFilter deliveries={deliveries} value={selectedDelivery} onChange={setSelectedDelivery} />
       </div>
       <EscalationQueue escalations={escalations} onDecide={handleDecide} />
+      <AssessmentGrid items={assessmentFeed} />
+      <LiveFeed events={feedEvents} />
     </main>
   );
 }

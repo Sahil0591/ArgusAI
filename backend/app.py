@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend import config
+from backend.routes import router
 
 
 # ---------------------------------------------------------------------------
@@ -16,8 +17,20 @@ from backend import config
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    print("[ArgusAI] startup")
+    import os
+    from backend.store import Store
+    from backend.services import DeliveryService
+    from backend import routes
+
+    # Use /data/ on Modal (Volume), local path otherwise
+    db_path = "/data/argusai.db" if os.path.isdir("/data") else config.DB_PATH
+    store = Store(db_path)
+    store.init_db()
+    service = DeliveryService(store)
+    routes.set_dependencies(service, store)
+    print(f"[ArgusAI] startup - db: {db_path}")
     yield
+    store.close()
     print("[ArgusAI] shutdown")
 
 
@@ -35,6 +48,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(router)
 
 # Logfire instrumentation — optional; skipped when token is absent
 try:

@@ -36,12 +36,13 @@ Hands-free voice agent for warehouse goods receipt. A clerk talks through a deli
 - [x] SQLite store with append-only event log
 - [x] pytest unit tests for models and store (21 passed)
 
-### Phase 3 — Voice Backend
-- [ ] POST /live/token — ephemeral Gemini Live token
-- [ ] GET /live/tools — function declarations + system instruction
-- [ ] Tool endpoints: log_line, close_pallet, report_damage, delivery_status
-- [ ] needs_review fallback on tool failure
-- [ ] Acceptance: endpoints work via curl/pytest, token accepted by Gemini Live API
+### Phase 3 — Voice Backend ✅
+- [x] POST /live/token — ephemeral Gemini Live token (verified with real API)
+- [x] GET /live/tools — function declarations + system instruction
+- [x] Tool endpoints: log_line, close_pallet, report_damage, delivery_status
+- [x] needs_review fallback on tool failure
+- [x] Service layer with PO matching (fuzzy string match for voice input)
+- [x] Acceptance: all endpoints verified locally and deployed to Modal
 
 ### Phase 4 — Photos and Vision
 - [ ] POST /photos — upload photo for pending damage report

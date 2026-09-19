@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from difflib import SequenceMatcher
 
@@ -59,6 +60,9 @@ def fuzzy_match_po_line(po: PurchaseOrder, material_description: str) -> POLine 
     return None
 
 
+DUPLICATE_WINDOW = timedelta(seconds=8)
+
+
 class DeliveryService:
     """Orchestrates delivery operations against the store."""
 
@@ -66,6 +70,34 @@ class DeliveryService:
         self.store = store
         # Track received quantities per delivery per PO line: {delivery_id: {EBELP: qty}}
         self._received: dict[str, dict[str, float]] = {}
+
+    def _recent_event(self, delivery_id: str, event_type: EventType, matches) -> Event | None:
+        """Most recent event of this type within DUPLICATE_WINDOW whose data
+        satisfies `matches`. The Gemini Live API can regenerate a tool call
+        for a single spoken utterance under a fresh call id - sometimes even
+        with slightly different transcribed text (observed live: "5DN" vs
+        "5DN50" for the same damage report) - so a tool_call_id replay check
+        alone doesn't catch it. This is a content-based fallback."""
+        cutoff = datetime.now(UTC) - DUPLICATE_WINDOW
+        for event in reversed(self.store.get_events(delivery_id)):
+            if event.timestamp < cutoff:
+                break
+            if event.type == event_type and matches(event.data):
+                return event
+        return None
+
+    @staticmethod
+    def _duplicate_line_response(event: Event) -> dict:
+        return {
+            "speech": "That line was already logged.",
+            "event_id": event.id,
+            "duplicate": True,
+            "po_line": event.data.get("po_line"),
+            "material_number": event.data.get("material_number"),
+            "material_description": event.data.get("material_description"),
+            "line_status": event.data.get("line_status", "received"),
+            "discrepancies": event.data.get("discrepancies", []),
+        }
 
     def start_delivery(self, delivery_id: str, po_number: str) -> Delivery:
         """Start or resume a delivery."""
@@ -96,23 +128,33 @@ class DeliveryService:
         # Gemini may replay a function call while waiting for the tool
         # response. The call ID makes the operation idempotent across retries.
         if spoken.tool_call_id:
-            for event in reversed(self.store.get_events(spoken.delivery_id)):
-                if event.type == EventType.LINE_LOGGED and event.data.get("tool_call_id") == spoken.tool_call_id:
-                    return {
-                        "speech": "That line was already logged.",
-                        "event_id": event.id,
-                        "duplicate": True,
-                        "po_line": event.data.get("po_line"),
-                        "material_number": event.data.get("material_number"),
-                        "material_description": event.data.get("material_description"),
-                        "line_status": event.data.get("line_status", "received"),
-                        "discrepancies": event.data.get("discrepancies", []),
-                    }
+            dup = self._recent_event(
+                spoken.delivery_id,
+                EventType.LINE_LOGGED,
+                lambda data: data.get("tool_call_id") == spoken.tool_call_id,
+            )
+            if dup:
+                return self._duplicate_line_response(dup)
 
         # Match to PO line
         po_line = fuzzy_match_po_line(po, spoken.material_description)
         if not po_line:
             return self._fail_event(spoken, f"Could not match '{spoken.material_description}' to any PO line")
+
+        # Fallback for when Gemini issues a genuinely new call id for what
+        # was really the same utterance (see _recent_event docstring): same
+        # resolved line, same quantity, same status, within the window.
+        content_dup = self._recent_event(
+            spoken.delivery_id,
+            EventType.LINE_LOGGED,
+            lambda data: (
+                data.get("po_line") == po_line.EBELP
+                and float(data.get("this_qty", -1)) == spoken.quantity
+                and data.get("line_status", "received") == spoken.line_status
+            ),
+        )
+        if content_dup:
+            return self._duplicate_line_response(content_dup)
 
         # Derive the running received quantity from persisted events so a
         # container restart cannot reset the progress shown to the clerk.
@@ -263,15 +305,55 @@ class DeliveryService:
         ))
         return {"speech": "Unmatched line removed from the checklist.", "event_id": event.id}
 
-    def report_damage(self, delivery_id: str, material_description: str, description: str, quantity: int = 1) -> dict:
+    def report_damage(
+        self,
+        delivery_id: str,
+        material_description: str,
+        description: str,
+        quantity: int = 1,
+        tool_call_id: str | None = None,
+    ) -> dict:
         """Report damage for a material, request photo."""
         delivery = self.store.get_delivery(delivery_id)
         if not delivery:
             return {"speech": "No active delivery found.", "error": True}
 
+        def _duplicate_response(event: Event) -> dict:
+            return {
+                "speech": "That damage was already reported.",
+                "event_id": event.id,
+                "discrepancy_id": event.data.get("discrepancy", {}).get("id"),
+                "duplicate": True,
+                "photo_requested": True,
+            }
+
+        if tool_call_id:
+            dup = self._recent_event(
+                delivery_id, EventType.DAMAGE_REPORTED, lambda data: data.get("tool_call_id") == tool_call_id
+            )
+            if dup:
+                return _duplicate_response(dup)
+
         po = get_po(delivery.po_number)
         po_line = fuzzy_match_po_line(po, material_description) if po else None
         canonical_description = po_line.MAKTX if po_line else material_description
+
+        # Same fallback as log_line: Gemini can regenerate this call under a
+        # fresh id (and sometimes slightly different transcribed text) for
+        # one spoken utterance. Only applied when the line actually
+        # resolved, so two genuinely separate unmatched-item reports within
+        # the window aren't collapsed into one.
+        if po_line:
+            content_dup = self._recent_event(
+                delivery_id,
+                EventType.DAMAGE_REPORTED,
+                lambda data: (
+                    data.get("material_number") == po_line.MATNR
+                    and (data.get("discrepancy") or {}).get("actual_qty") == quantity
+                ),
+            )
+            if content_dup:
+                return _duplicate_response(content_dup)
 
         disc = Discrepancy(
             type=DiscrepancyType.DAMAGE,
@@ -288,6 +370,7 @@ class DeliveryService:
                 "discrepancy": disc.model_dump(),
                 "material_description": canonical_description,
                 "material_number": po_line.MATNR if po_line else None,
+                "tool_call_id": tool_call_id,
             },
         )
         saved = self.store.add_event(event)

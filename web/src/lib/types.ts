@@ -250,6 +250,7 @@ export interface ReportDamageRequest {
   material_description: string;
   description: string;
   quantity?: number; // defaults to 1 server-side
+  tool_call_id?: string;
 }
 
 export interface ReportDamageResponse {
@@ -257,6 +258,7 @@ export interface ReportDamageResponse {
   event_id?: number;
   discrepancy_id?: string;
   photo_requested?: boolean;
+  duplicate?: boolean;
   error?: boolean;
 }
 

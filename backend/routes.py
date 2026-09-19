@@ -62,6 +62,7 @@ class ReportDamageRequest(BaseModel):
     material_description: str
     description: str
     quantity: int = 1
+    tool_call_id: str | None = None
 
 class DeliveryStatusRequest(BaseModel):
     delivery_id: str
@@ -252,7 +253,9 @@ async def tool_dismiss_unmatched(req: DismissUnmatchedRequest):
 @router.post("/tools/report_damage")
 async def tool_report_damage(req: ReportDamageRequest):
     service = get_service()
-    return service.report_damage(req.delivery_id, req.material_description, req.description, req.quantity)
+    return service.report_damage(
+        req.delivery_id, req.material_description, req.description, req.quantity, req.tool_call_id
+    )
 
 
 @router.get("/tools/delivery_status")

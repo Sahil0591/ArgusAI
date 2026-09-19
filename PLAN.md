@@ -51,12 +51,12 @@ Hands-free voice agent for warehouse goods receipt. A clerk talks through a deli
 - [x] Test with sample image (backend/seed/photos/sample_damage.jpg)
 - Note: gemini-2.5-flash deprecated, updated to gemini-3.6-flash
 
-### Phase 5 — Policy Engine
-- [ ] PolicyConfig with configurable thresholds
-- [ ] Rule evaluation: shortage ≤2% → auto-accept; damage ≤€100 → auto-accept with claim; above thresholds / wrong material / confidence <0.7 → escalate
-- [ ] Claim drafting via Pydantic AI agent
-- [ ] Decision reasons (human-readable)
-- [ ] Unit tests for each decision path
+### Phase 5 — Policy Engine ✅
+- [x] PolicyConfig with configurable thresholds
+- [x] Rule evaluation: shortage <=2% -> auto-accept; damage <=EUR100 -> auto-accept with claim; above thresholds / wrong material / confidence <0.7 -> escalate
+- [x] Claim drafting: sync template + async LLM upgrade via Pydantic AI
+- [x] Decision reasons (human-readable)
+- [x] Unit tests for each decision path (12 tests, all passing)
 
 ### Phase 6 — Stream, Decisions, Simulator
 - [ ] GET /stream — SSE for phone page and dashboard

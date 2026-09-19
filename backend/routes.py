@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import datetime
+import json as json_module
 import os
 import traceback
 import uuid
@@ -10,7 +12,16 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from backend import config
-from backend.models import SpokenLine
+from backend.models import (
+    Decision,
+    Discrepancy,
+    DiscrepancyType,
+    Escalation,
+    Event,
+    EventType,
+    Photo,
+    SpokenLine,
+)
 
 
 router = APIRouter()
@@ -195,7 +206,6 @@ async def tool_log_line(req: LogLineRequest):
         return service.log_line(spoken)
     except Exception as exc:
         # Never drop an utterance - log with needs_review
-        from backend.models import Event, EventType
         store = get_store()
         event = Event(
             delivery_id=req.delivery_id,
@@ -272,7 +282,7 @@ async def upload_photo(
     delivery_id: str = Form(...),
     discrepancy_id: str = Form(...),
 ):
-    """Upload a damage photo, run vision assessment, return result."""
+    """Upload a damage photo, run vision assessment, apply policy engine, return result."""
     store = get_store()
     service = get_service()
 
@@ -290,7 +300,6 @@ async def upload_photo(
     filepath.write_bytes(image_bytes)
 
     # Record in DB
-    from backend.models import Event, EventType, Photo
     photo = Photo(
         id=photo_id,
         delivery_id=delivery_id,
@@ -331,10 +340,71 @@ async def upload_photo(
                 "assessment": assessment.model_dump(),
             },
         ))
+
+        # Apply policy engine
+        from backend.policy import evaluate_discrepancy
+        from backend.services import get_po, get_vendor
+
+        delivery = store.get_delivery(delivery_id)
+        po = get_po(delivery.po_number) if delivery else None
+        vendor = get_vendor(delivery.vendor_id) if delivery else None
+        vendor_name = vendor.NAME1 if vendor else "Unknown"
+        po_number = delivery.po_number if delivery else "Unknown"
+
+        # Pull discrepancy data from the damage_reported event (which used
+        # fuzzy PO matching and has the correct unit_value_eur / total_value_eur).
+        unit_value = 0.0
+        damage_qty = 1
+        for e in reversed(events):
+            if e.type == EventType.DAMAGE_REPORTED and e.data.get("discrepancy", {}).get("id") == discrepancy_id:
+                unit_value = e.data["discrepancy"].get("unit_value_eur", 0.0)
+                damage_qty = e.data["discrepancy"].get("actual_qty", 1)
+                break
+
+        disc_for_policy = Discrepancy(
+            id=discrepancy_id,
+            type=DiscrepancyType.DAMAGE,
+            damage_description=assessment.description,
+            actual_qty=damage_qty,
+            unit_value_eur=unit_value,
+            total_value_eur=unit_value * damage_qty,
+        )
+
+        policy_decision = evaluate_discrepancy(disc_for_policy, assessment, vendor_name, po_number)
+
+        # Write policy decision event
+        store.add_event(Event(
+            delivery_id=delivery_id,
+            type=EventType.POLICY_DECISION,
+            data={
+                "discrepancy_id": discrepancy_id,
+                "decision": policy_decision.decision.value,
+                "reason": policy_decision.reason,
+                "claim": policy_decision.claim.model_dump() if policy_decision.claim else None,
+            },
+        ))
+
+        # If escalation required, create escalation record
+        esc = None
+        if policy_decision.decision == Decision.ESCALATE:
+            esc = Escalation(delivery_id=delivery_id, discrepancy_id=discrepancy_id)
+            store.create_escalation(esc)
+            store.add_event(Event(
+                delivery_id=delivery_id,
+                type=EventType.ESCALATION_CREATED,
+                data={"escalation_id": esc.id, "discrepancy_id": discrepancy_id, "reason": policy_decision.reason},
+            ))
+
         return {
             "photo_id": photo_id,
             "assessment": assessment.model_dump(),
-            "speech": f"Photo analyzed. {assessment.description}. Severity: {assessment.severity.value}. Confidence: {assessment.confidence:.0%}.",
+            "decision": {
+                "decision": policy_decision.decision.value,
+                "reason": policy_decision.reason,
+                "claim": policy_decision.claim.model_dump() if policy_decision.claim else None,
+            },
+            "escalation_id": esc.id if esc else None,
+            "speech": f"Photo analyzed. {assessment.description}. {policy_decision.reason}",
         }
     else:
         # Vision failed - store photo, mark for review (will be escalated by policy engine)
@@ -355,3 +425,88 @@ async def upload_photo(
             "speech": "I couldn't analyze the photo. I've saved it and flagged it for manual review.",
             "needs_review": True,
         }
+
+
+# --- SSE stream ---
+
+@router.get("/stream")
+async def event_stream(last_event_id: int = 0):
+    """Server-sent events stream for real-time updates."""
+    from starlette.responses import StreamingResponse
+
+    async def generate():
+        current_id = last_event_id
+        while True:
+            store = get_store()
+            events = store.get_events_since(current_id)
+            for event in events:
+                data = {
+                    "type": event.type.value,
+                    "delivery_id": event.delivery_id,
+                    "event_id": event.id,
+                    "payload": event.data,
+                    "needs_review": event.needs_review,
+                    "timestamp": event.timestamp.isoformat(),
+                }
+                yield f"event: {event.type.value}\ndata: {json_module.dumps(data)}\n\n"
+                current_id = event.id
+            await asyncio.sleep(1)
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+# --- Escalation management ---
+
+@router.get("/escalations")
+async def list_escalations(delivery_id: str | None = None):
+    store = get_store()
+    escalations = store.list_escalations(delivery_id)
+    return [
+        {
+            "id": e.id,
+            "delivery_id": e.delivery_id,
+            "discrepancy_id": e.discrepancy_id,
+            "status": e.status.value,
+            "decided_at": e.decided_at.isoformat() if e.decided_at else None,
+            "decided_by": e.decided_by,
+        }
+        for e in escalations
+    ]
+
+
+@router.post("/escalations/{escalation_id}/decision")
+async def decide_escalation(escalation_id: str, req: EscalationDecisionRequest):
+    """Manager accepts or rejects an escalation. Idempotent."""
+    store = get_store()
+
+    esc = store.get_escalation(escalation_id)
+    if not esc:
+        raise HTTPException(status_code=404, detail="Escalation not found")
+
+    decided = store.decide_escalation(escalation_id, req.decision, req.decided_by)
+
+    # Write decision event
+    store.add_event(Event(
+        delivery_id=decided.delivery_id,
+        type=EventType.ESCALATION_DECIDED,
+        data={
+            "escalation_id": decided.id,
+            "decision": decided.status.value,
+            "decided_by": decided.decided_by,
+        },
+    ))
+
+    speech = (
+        "Manager approved - proceed with receiving."
+        if req.decision == "accepted"
+        else "Manager rejected - set aside for return."
+    )
+
+    return {
+        "speech": speech,
+        "escalation": {
+            "id": decided.id,
+            "status": decided.status.value,
+            "decided_by": decided.decided_by,
+        },
+    }

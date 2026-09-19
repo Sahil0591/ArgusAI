@@ -58,11 +58,11 @@ Hands-free voice agent for warehouse goods receipt. A clerk talks through a deli
 - [x] Decision reasons (human-readable)
 - [x] Unit tests for each decision path (12 tests, all passing)
 
-### Phase 6 — Stream, Decisions, Simulator
-- [ ] GET /stream — SSE for phone page and dashboard
-- [ ] POST /escalations/{id}/decision — idempotent accept/reject
-- [ ] scripts/simulate_delivery.py — full delivery end-to-end
-- [ ] Acceptance: simulator runs full delivery against deployed backend
+### Phase 6 — Stream, Decisions, Simulator ✅
+- [x] GET /stream — SSE for phone page and dashboard
+- [x] POST /escalations/{id}/decision — idempotent accept/reject
+- [x] scripts/simulate_delivery.py — full delivery end-to-end
+- [x] Acceptance: simulator runs full delivery against deployed backend
 
 ### Phase 7 — Export and Handoff
 - [ ] GoodsReceiptDocument + QualityNotification export (JSON)

@@ -22,13 +22,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from backend.services import DeliveryService
     from backend import routes
 
-    # Use /data/ on Modal (Volume), local path otherwise
-    db_path = "/data/argusai.db" if os.path.isdir("/data") else config.DB_PATH
-    store = Store(db_path)
+    database_url = config.database_url_for_runtime(modal_volume_available=os.path.isdir("/data"))
+    store = Store(database_url=database_url)
     store.init_db()
     service = DeliveryService(store)
     routes.set_dependencies(service, store)
-    print(f"[ArgusAI] startup - db: {db_path}")
+    print(f"[ArgusAI] startup - db: {database_url}")
     yield
     store.close()
     print("[ArgusAI] shutdown")

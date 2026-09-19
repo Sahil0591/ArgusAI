@@ -1,13 +1,9 @@
 // Single point of contact with the backend. Every page/component goes
 // through here, never through raw fetch.
 //
-// Defaults to Sahil's live Modal backend. NEXT_PUBLIC_API_BASE isn't a
-// secret (NEXT_PUBLIC_* vars are inlined into the client bundle anyway),
-// so the real URL is just the code-level default — override via env var
-// only if pointing at something else (e.g. a local backend).
-//
-// NOTE: the backend only allows CORS from http://localhost:5173 — run the
-// dev server on that port (`npm run dev`, see package.json).
+// NEXT_PUBLIC_API_BASE is public client config, not a secret. Use
+// web/.env.local for local dev and set the same variable in Vercel
+// production to the deployed Modal backend URL.
 
 import type {
   ClosePalletRequest,
@@ -32,7 +28,7 @@ import type {
   StartDeliveryResponse,
 } from "./types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "https://sahil0591-argusai--argusai-web.modal.run";
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "http://127.0.0.1:8000").replace(/\/$/, "");
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {

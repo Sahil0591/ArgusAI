@@ -6,12 +6,12 @@ Read this before touching `web/` — it tells you what's actually built, what's
 verified, and what's left. `docs/FRONTEND.md` is Sahil's original API handoff
 (useful as a reference); this file tracks reality as of the last session.
 
-## Current state: P0 done, wired to the REAL live backend
+## Current state: P0 done, backend selected by environment
 
 `web/` is a Next.js 16 (App Router, TypeScript, Tailwind v4) app talking
-directly to `https://sahil0591-argusai--argusai-web.modal.run` — not a mock.
-The mock backend built early in the session was deleted once the real one
-came online; don't recreate it.
+to the backend configured by `NEXT_PUBLIC_API_BASE` — not a mock. The mock
+backend built early in the session was deleted once the real one came online;
+don't recreate it.
 
 **Working and verified live in a browser (zero console errors):**
 - Landing page (`/`) — pick one of the 3 real POs, starts a delivery against
@@ -35,10 +35,10 @@ cd web && npm run dev
 ```
 
 Dev server **must** run on port 5173 (`package.json`'s `dev` script already
-has `-p 5173` baked in) — the backend's CORS only allows
-`http://localhost:5173`, not the Next.js default 3000. If you ever need to
-point at a different backend, override `NEXT_PUBLIC_API_BASE` (defaults to
-the live Modal URL in `lib/api-client.ts`).
+has `-p 5173` baked in), and the backend `CORS_ORIGINS` value must include
+that origin. Point the frontend at a backend with `NEXT_PUBLIC_API_BASE` in
+`web/.env.local`; the code fallback is local FastAPI at
+`http://127.0.0.1:8000`.
 
 Note: the backend has **shared live state** — other people's test runs
 (including deliveries starting with `SIM-` from Sahil's own simulator
@@ -134,8 +134,8 @@ script) will show up. That's expected.
 ```
 lib/
   types.ts            # TS types matching the REAL backend contract
-  api-client.ts        # all backend calls go through here (default target:
-                        # live Modal URL — NEXT_PUBLIC_API_BASE overrides it)
+  api-client.ts        # all backend calls go through here
+                        # NEXT_PUBLIC_API_BASE selects local or Modal backend
   po-catalog.ts         # static PO/vendor mirror (display-only, see gotcha #2)
   derive.ts             # event-log -> checklist / enriched-escalation view-models
   store.ts               # zustand: raw SSE event log only (see gotcha #6)

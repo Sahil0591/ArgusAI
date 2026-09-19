@@ -19,11 +19,11 @@ Two pages are required:
 
 ## Suggested Stack
 
-- React + Vite
+- Current app: Next.js in `web/`
 - Tailwind CSS
 - Deployment: Vercel or similar (HTTPS required for `getUserMedia`)
 
-CORS is pre-configured for `http://localhost:5173`. Add production origin to the backend when deploying.
+Set the backend `CORS_ORIGINS` environment variable to include local and production frontend origins, for example `http://localhost:5173,http://127.0.0.1:5173,https://<your-vercel-app>.vercel.app`.
 
 ---
 
@@ -393,8 +393,16 @@ Provide download links or buttons that call `GET /deliveries/{id}/export/gr` and
 
 ## Environment Variables
 
+The current Next.js frontend uses:
+
+```env
+NEXT_PUBLIC_API_BASE=https://<modal-user-or-workspace>--argusai-web.modal.run
 ```
-VITE_BACKEND_URL=https://sahil0591-argusai--argusai-web.modal.run
+
+If this UI is ever ported back to Vite, use the Vite public prefix instead:
+
+```env
+VITE_API_BASE=https://<modal-user-or-workspace>--argusai-web.modal.run
 ```
 
 The Gemini WebSocket URL and API key handling are managed by the token returned from `POST /live/token`. No Gemini API key is stored in the frontend.
@@ -404,16 +412,16 @@ The Gemini WebSocket URL and API key handling are managed by the token returned 
 ## Development Setup
 
 ```bash
-npm create vite@latest argusai-web -- --template react-ts
-cd argusai-web
+cd web
+cp .env.local.example .env.local
 npm install
 npm run dev
 # dev server starts at http://localhost:5173
 ```
 
-CORS is pre-configured for `http://localhost:5173`. No proxy configuration is needed during development.
+CORS is configured through the backend `CORS_ORIGINS` variable. No proxy configuration is needed during development when `NEXT_PUBLIC_API_BASE` points at the backend.
 
-For production, add the deployed frontend origin to the backend CORS allowlist (backend environment variable or config change - coordinate with backend team).
+For production, add the deployed frontend origin to the Modal secret's `CORS_ORIGINS` value.
 
 ---
 

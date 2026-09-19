@@ -108,4 +108,5 @@ python -m modal secret create argusai-secrets \
 python -m modal deploy backend/modal_app.py
 ```
 
-Modal containers are ephemeral, so production database state should live in the external database configured by `DATABASE_URL`. The app still mounts a Modal Volume at `/data` for SQLite fallback and uploaded photos. See `docs/DEPLOYMENT_ENV.md` for Vercel, Modal, and CORS templates.
+Modal containers are ephemeral, so production database state should live in the external database configured by `DATABASE_URL`. The app still mounts a Modal Volume at `/data` for SQLite fallback and uploaded photos. See `docs/DEPLOYMENT_ENV.md` for Vercel, Modal, and CORS templates..
+

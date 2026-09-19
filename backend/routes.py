@@ -67,6 +67,11 @@ class ReportDamageRequest(BaseModel):
 class DeliveryStatusRequest(BaseModel):
     delivery_id: str
 
+class ReportExtraItemRequest(BaseModel):
+    delivery_id: str
+    description: str
+    tool_call_id: str | None = None
+
 class EscalationDecisionRequest(BaseModel):
     decision: str  # "accepted" or "rejected"
     decided_by: str = "manager"
@@ -121,39 +126,116 @@ async def live_token():
 
 
 @router.get("/live/tools")
-async def live_tools():
-    """Return function declarations and system instruction for Gemini Live."""
-    system_instruction = (
-        "You are ArgusAI, a hands-free voice assistant for warehouse goods receipt. "
-        "You help receiving clerks log deliveries against purchase orders. "
-        "When the clerk describes items they are receiving, use the log_line tool to record them. "
-        "If the clerk says an item is missing, still use log_line immediately with line_status='missing' "
-        "and the missing quantity; do not wait for a later received count. "
-        "When they mention damage, use report_damage. "
-        "When they finish a pallet, use close_pallet. "
-        "When they ask about progress, use delivery_status. "
-        "Keep your spoken responses short and clear - the clerk is working with their hands. "
-        "Always confirm what you logged. If something is unclear, ask for clarification."
+async def live_tools(delivery_id: str | None = None):
+    """Return function declarations and system instruction for Gemini Live.
+
+    When delivery_id is provided the PO manifest is embedded directly in the
+    system instruction so the agent can walk items one by one and know when
+    all expected types have been confirmed.
+    """
+    from backend.services import get_po, get_vendor, PURCHASE_ORDERS
+
+    # Build the delivery / PO context block
+    po_context_lines: list[str] = []
+    total_items = 0
+    if delivery_id:
+        store = get_store()
+        delivery = store.get_delivery(delivery_id)
+        if delivery:
+            po = get_po(delivery.po_number)
+            vendor = get_vendor(delivery.vendor_id)
+            if po:
+                vendor_name = vendor.NAME1 if vendor else delivery.vendor_id
+                total_items = len(po.lines)
+                po_context_lines.append(
+                    f"DELIVERY: PO {po.EBELN} | Vendor: {vendor_name} | {total_items} item type(s) expected"
+                )
+                po_context_lines.append("EXPECTED ITEMS:")
+                for line in po.lines:
+                    po_context_lines.append(
+                        f"  Line {line.EBELP}: {line.MAKTX} — {int(line.MENGE)} {line.MEINS}"
+                    )
+
+    po_block = "\n".join(po_context_lines) if po_context_lines else (
+        "No PO context available — match items by description as best you can."
     )
+
+    n_items_str = str(total_items) if total_items else "all"
+
+    system_instruction = f"""You are ArgusAI, a hands-free warehouse goods-receipt voice assistant. Walk the clerk through this delivery item by item, confirm every count precisely, and flag anything unexpected.
+
+{po_block}
+
+BEHAVIOUR RULES — follow these exactly, in order:
+
+1. GREET AND START: Begin by briefly greeting the clerk and asking about the FIRST item on the list above. Do not mention all items at once.
+
+2. ONE ITEM AT A TIME: Only move to the next item after you have fully confirmed the current one. Ask about items in line order.
+
+3. CONFIRM BEFORE LOGGING: If the clerk's answer is vague (e.g. "some", "a few", "most of them"), ask a specific follow-up BEFORE calling any tool. Example: "How many pairs of {'{item}'} exactly?" Never guess or assume a quantity.
+
+4. PARTIAL QUANTITIES — ALWAYS FOLLOW UP: Whenever the clerk reports a partial issue (damage, missing, short count) that accounts for FEWER units than ordered, you MUST ask about the remaining units before logging or moving on. Example: if 40 gloves are expected and the clerk says "5 are damaged", respond: "Understood — 5 damaged. What about the other 35 pairs? Are they in good condition to receive?" Wait for confirmation before calling any tool.
+
+5. LOG ACCURATELY: After receiving a clear answer, call log_line for received units and report_damage for damaged ones. If items are missing call log_line with line_status='missing'.
+
+6. COMPLETION CHECK: Once you have received a confirmed answer for every one of the {n_items_str} expected item type(s), say exactly this: "I've now accounted for all {n_items_str} item type(s) on this delivery. Is there anything else physically present in this shipment that I haven't mentioned?"
+
+7. EXTRA ITEMS: If the clerk confirms there is something extra, say: "That item is not on the purchase order — please take a photo of it so I can log it as an extra." Then call report_extra_item with the clerk's description.
+
+8. DAMAGE PHOTOS: Whenever damage is reported, call report_damage and ask the clerk to take a photo immediately.
+
+9. BREVITY: Every spoken response must be at most 2 short sentences. The clerk is working with their hands — be direct.
+
+The delivery_id is already known — never ask the clerk for it."""
 
     tools = [
         {
             "function_declarations": [
                 {
                     "name": "log_line",
-                    "description": "Log a received line item against the purchase order. Use when the clerk reports receiving items.",
+                    "description": "Log a received or missing line item against the purchase order.",
                     "parameters": {
                         "type": "object",
                         "properties": {
                             "delivery_id": {"type": "string", "description": "The delivery ID"},
                             "pallet_number": {"type": "integer", "description": "Pallet number if mentioned"},
-                            "material_description": {"type": "string", "description": "Description of the material received"},
-                            "quantity": {"type": "number", "description": "Number of units received"},
-                            "unit_of_measure": {"type": "string", "description": "Unit: CTN (cartons), PC (pieces), PKG (packages)"},
-                            "damage_noted": {"type": "string", "description": "Description of any damage if mentioned"},
-                            "line_status": {"type": "string", "enum": ["received", "missing"], "description": "Use missing when the clerk says the item is missing; otherwise received"},
+                            "material_description": {"type": "string", "description": "Description of the material"},
+                            "quantity": {"type": "number", "description": "Number of units"},
+                            "unit_of_measure": {"type": "string", "description": "Unit: CTN, PC, PKG, PR, etc."},
+                            "damage_noted": {"type": "string", "description": "Brief damage description if inline damage is noted"},
+                            "line_status": {
+                                "type": "string",
+                                "enum": ["received", "missing"],
+                                "description": "Use 'missing' when the clerk says the item is missing; otherwise 'received'",
+                            },
                         },
                         "required": ["delivery_id", "material_description", "quantity", "line_status"],
+                    },
+                },
+                {
+                    "name": "report_damage",
+                    "description": "Report damage to items. Always call this when the clerk mentions damage — do not use log_line's damage_noted field for damage.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "delivery_id": {"type": "string", "description": "The delivery ID"},
+                            "material_description": {"type": "string", "description": "Description of the damaged material"},
+                            "description": {"type": "string", "description": "Description of the damage"},
+                            "quantity": {"type": "integer", "description": "Number of damaged units"},
+                        },
+                        "required": ["delivery_id", "material_description", "description"],
+                    },
+                },
+                {
+                    "name": "report_extra_item",
+                    "description": "Log an item that is physically present but NOT on the purchase order. Triggers a photo request. Call this only after the clerk has confirmed the item is extra.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "delivery_id": {"type": "string", "description": "The delivery ID"},
+                            "description": {"type": "string", "description": "Clerk's description of the extra item"},
+                        },
+                        "required": ["delivery_id", "description"],
                     },
                 },
                 {
@@ -166,20 +248,6 @@ async def live_tools():
                             "pallet_number": {"type": "integer", "description": "The pallet number to close"},
                         },
                         "required": ["delivery_id", "pallet_number"],
-                    },
-                },
-                {
-                    "name": "report_damage",
-                    "description": "Report damage to items. Use when the clerk specifically reports damage to a material.",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "delivery_id": {"type": "string", "description": "The delivery ID"},
-                            "material_description": {"type": "string", "description": "Description of the damaged material"},
-                            "description": {"type": "string", "description": "Description of the damage"},
-                            "quantity": {"type": "integer", "description": "Number of damaged units"},
-                        },
-                        "required": ["delivery_id", "material_description", "description"],
                     },
                 },
                 {
@@ -256,6 +324,12 @@ async def tool_report_damage(req: ReportDamageRequest):
     return service.report_damage(
         req.delivery_id, req.material_description, req.description, req.quantity, req.tool_call_id
     )
+
+
+@router.post("/tools/report_extra_item")
+async def tool_report_extra_item(req: ReportExtraItemRequest):
+    service = get_service()
+    return service.report_extra_item(req.delivery_id, req.description, req.tool_call_id)
 
 
 @router.get("/tools/delivery_status")

@@ -262,6 +262,22 @@ export interface ReportDamageResponse {
   error?: boolean;
 }
 
+export interface ReportExtraItemRequest {
+  delivery_id: string;
+  description: string;
+  tool_call_id?: string;
+}
+
+export interface ReportExtraItemResponse {
+  speech: string;
+  event_id?: number;
+  discrepancy_id?: string;
+  photo_requested?: boolean;
+  is_extra_item?: boolean;
+  duplicate?: boolean;
+  error?: boolean;
+}
+
 export interface ClosePalletRequest {
   delivery_id: string;
   pallet_number: number;

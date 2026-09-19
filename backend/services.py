@@ -382,6 +382,65 @@ class DeliveryService:
             "photo_requested": True,
         }
 
+    def report_extra_item(
+        self,
+        delivery_id: str,
+        description: str,
+        tool_call_id: str | None = None,
+    ) -> dict:
+        """Log an item not on the PO. Emits a DAMAGE_REPORTED event flagged as
+        extra so the existing photo→vision→policy pipeline handles it, and the
+        manager dashboard surfaces it for review."""
+        delivery = self.store.get_delivery(delivery_id)
+        if not delivery:
+            return {"speech": "No active delivery found.", "error": True}
+
+        if tool_call_id:
+            dup = self._recent_event(
+                delivery_id,
+                EventType.DAMAGE_REPORTED,
+                lambda data: data.get("tool_call_id") == tool_call_id and data.get("is_extra_item"),
+            )
+            if dup:
+                return {
+                    "speech": "That extra item was already flagged.",
+                    "event_id": dup.id,
+                    "discrepancy_id": dup.data.get("discrepancy", {}).get("id"),
+                    "photo_requested": True,
+                    "is_extra_item": True,
+                    "duplicate": True,
+                }
+
+        disc = Discrepancy(
+            type=DiscrepancyType.WRONG_ITEM,
+            damage_description=f"Extra item not on PO: {description}",
+            actual_qty=1,
+            unit_value_eur=0.0,
+            total_value_eur=0.0,
+        )
+
+        event = Event(
+            delivery_id=delivery_id,
+            type=EventType.DAMAGE_REPORTED,
+            data={
+                "discrepancy": disc.model_dump(),
+                "material_description": description,
+                "material_number": None,
+                "is_extra_item": True,
+                "tool_call_id": tool_call_id,
+            },
+            needs_review=True,
+        )
+        saved = self.store.add_event(event)
+
+        return {
+            "speech": f"Got it — that item is not on the purchase order. Please take a photo so I can log it as an extra.",
+            "event_id": saved.id,
+            "discrepancy_id": disc.id,
+            "photo_requested": True,
+            "is_extra_item": True,
+        }
+
     def get_delivery_status(self, delivery_id: str) -> dict:
         """Return current delivery status summary."""
         delivery = self.store.get_delivery(delivery_id)

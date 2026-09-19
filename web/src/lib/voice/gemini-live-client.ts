@@ -17,7 +17,7 @@
 
 import { apiClient } from "../api-client";
 import { arrayBufferToBase64, base64ToInt16Array, float32ToPcm16, pcm16ToFloat32 } from "./pcm";
-import type { ClosePalletRequest, FunctionDeclaration, LogLineRequest, ReportDamageRequest } from "../types";
+import type { ClosePalletRequest, FunctionDeclaration, LogLineRequest, ReportDamageRequest, ReportExtraItemRequest } from "../types";
 
 export type VoiceState = "idle" | "connecting" | "listening" | "error";
 
@@ -58,7 +58,7 @@ export class GeminiLiveSession {
     this.stopped = false;
     this.callbacks.onStateChange("connecting");
     try {
-      const [tools, token] = await Promise.all([apiClient.liveTools(), apiClient.liveToken()]);
+      const [tools, token] = await Promise.all([apiClient.liveTools(this.deliveryId), apiClient.liveToken()]);
 
       await this.setupAudio();
 
@@ -77,7 +77,11 @@ export class GeminiLiveSession {
               systemInstruction: {
                 parts: [
                   {
-                    text: `${tools.system_instruction} The current delivery_id is "${this.deliveryId}" — always use exactly this value for the delivery_id parameter on every tool call, never ask the clerk for it.`,
+                    // delivery_id is already embedded in system_instruction by the backend
+                    // when delivery_id was passed to /live/tools. We append it here too as
+                    // a belt-and-suspenders guarantee in case the session is started before
+                    // the delivery is created in the store.
+                    text: `${tools.system_instruction}\n\nThe delivery_id for ALL tool calls in this session is "${this.deliveryId}" — use it exactly, never ask the clerk for it.`,
                   },
                 ],
               },
@@ -219,6 +223,14 @@ export class GeminiLiveSession {
           result = res;
           if (res.photo_requested && res.discrepancy_id) {
             this.callbacks.onPhotoRequested(res.discrepancy_id, (args.material_description as string) ?? "item");
+          }
+          break;
+        }
+        case "report_extra_item": {
+          const res = await apiClient.reportExtraItem(args as unknown as ReportExtraItemRequest);
+          result = res;
+          if (res.photo_requested && res.discrepancy_id) {
+            this.callbacks.onPhotoRequested(res.discrepancy_id, (args.description as string) ?? "extra item");
           }
           break;
         }

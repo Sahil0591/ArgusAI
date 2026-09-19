@@ -25,6 +25,8 @@ import type {
   QualityNotification,
   ReportDamageRequest,
   ReportDamageResponse,
+  ReportExtraItemRequest,
+  ReportExtraItemResponse,
   StartDeliveryRequest,
   StartDeliveryResponse,
 } from "./types";
@@ -93,5 +95,8 @@ export const apiClient = {
     }),
 
   liveToken: () => request<LiveTokenResponse>("/live/token", { method: "POST" }),
-  liveTools: () => request<LiveToolsResponse>("/live/tools"),
+  liveTools: (deliveryId?: string) =>
+    request<LiveToolsResponse>(deliveryId ? `/live/tools?delivery_id=${encodeURIComponent(deliveryId)}` : "/live/tools"),
+  reportExtraItem: (body: ReportExtraItemRequest) =>
+    request<ReportExtraItemResponse>("/tools/report_extra_item", { method: "POST", body: JSON.stringify(body) }),
 };

@@ -29,5 +29,16 @@
       { "EBELP": "20", "MATNR": "MAT-008", "MAKTX": "PTFE Spiral Wound Gasket DN50",          "MENGE": 50,  "MEINS": "PC",  "NETPR": 22.60  },
       { "EBELP": "30", "MATNR": "MAT-010", "MAKTX": "M6 Pan Head Machine Screw A2",           "MENGE": 200, "MEINS": "PKG", "NETPR": 5.90   }
     ]
+  },
+  {
+    "EBELN": "PO-4500004",
+    "LIFNR": "V001",
+    "BEDAT": "2026-09-20",
+    "lines": [
+      { "EBELP": "10", "MATNR": "MAT-011", "MAKTX": "Cut-Resistant Safety Gloves Level D", "MENGE": 40, "MEINS": "PR",  "NETPR": 12.80 },
+      { "EBELP": "20", "MATNR": "MAT-012", "MAKTX": "Hard Hat Class E Yellow",             "MENGE": 20, "MEINS": "PC",  "NETPR": 34.50 },
+      { "EBELP": "30", "MATNR": "MAT-013", "MAKTX": "Safety Boot S3 Size 42",              "MENGE": 15, "MEINS": "PR",  "NETPR": 89.00 },
+      { "EBELP": "40", "MATNR": "MAT-014", "MAKTX": "High-Visibility Vest Class 3",        "MENGE": 60, "MEINS": "PC",  "NETPR": 8.40  }
+    ]
   }
 ]

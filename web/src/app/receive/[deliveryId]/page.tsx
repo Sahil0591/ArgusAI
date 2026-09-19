@@ -203,7 +203,7 @@ export default function ReceivePage() {
           <SummaryCard label="Over-received" value={`${completed.report.overage_units}`} detail="units" tone={completed.report.overage_units ? "accent" : "success"} />
         </section>
         <section className="rounded-lg border border-border bg-surface p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-col gap-3">
             <div>
               <h2 className="font-medium text-foreground">Delivery report</h2>
               <p className="text-sm text-muted-foreground">
@@ -212,11 +212,11 @@ export default function ReceivePage() {
                   : "All recorded exceptions have been resolved or auto-accepted."}
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => downloadJson(`${deliveryId}-report.json`, completed.report)} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-secondary">Download report</button>
-              <a href={apiClient.exportReportPdfUrl(deliveryId)} download={`${deliveryId}-report.pdf`} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-secondary">Download PDF</a>
-              <button onClick={() => downloadJson(`${deliveryId}-goods-receipt.json`, completed.goodsReceipt)} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-secondary">Download GR JSON</button>
-              <button onClick={() => downloadJson(`${deliveryId}-quality-notifications.json`, completed.qualityNotifications)} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-secondary">Download QN JSON</button>
+            <div className="flex flex-col gap-2 md:flex-row">
+              <button onClick={() => downloadJson(`${deliveryId}-report.json`, completed.report)} className="w-full rounded-md border border-border px-3 py-2.5 text-xs font-medium text-foreground hover:bg-surface-secondary md:w-auto">Download report</button>
+              <a href={apiClient.exportReportPdfUrl(deliveryId)} download={`${deliveryId}-report.pdf`} className="w-full rounded-md border border-border px-3 py-2.5 text-center text-xs font-medium text-foreground hover:bg-surface-secondary md:w-auto">Download PDF</a>
+              <button onClick={() => downloadJson(`${deliveryId}-goods-receipt.json`, completed.goodsReceipt)} className="w-full rounded-md border border-border px-3 py-2.5 text-xs font-medium text-foreground hover:bg-surface-secondary md:w-auto">Download GR JSON</button>
+              <button onClick={() => downloadJson(`${deliveryId}-quality-notifications.json`, completed.qualityNotifications)} className="w-full rounded-md border border-border px-3 py-2.5 text-xs font-medium text-foreground hover:bg-surface-secondary md:w-auto">Download QN JSON</button>
             </div>
           </div>
         </section>
@@ -254,7 +254,7 @@ export default function ReceivePage() {
         {manualEntry ? "Use voice instead" : "Having trouble? Use manual entry instead"}
       </button>
 
-      {pendingPhoto && <PhotoCapture material={pendingPhoto.material} onCapture={handlePhoto} />}
+      {pendingPhoto && <PhotoCapture material={pendingPhoto.material} onCapture={handlePhoto} onCancel={() => setPendingPhoto(null)} />}
       {hasDeliveryActivity && (
         <button
           onClick={handleComplete}
@@ -290,7 +290,7 @@ function SummaryCard({
   return (
     <div className={`rounded-lg border p-3 ${styles[tone]}`}>
       <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{value}</div>
+      <div className="mt-1 text-3xl font-semibold tabular-nums text-foreground">{value}</div>
       <div className="text-xs text-muted-foreground">{detail}</div>
     </div>
   );

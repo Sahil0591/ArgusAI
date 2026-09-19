@@ -12,11 +12,8 @@ export interface LogLineInput {
 }
 
 const UNITS = ["EA", "CTN", "PAL", "PC", "PKG"];
-const inputClass = "rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-foreground";
+const inputClass = "w-full rounded-lg border border-border bg-canvas px-3 py-3 text-sm text-foreground";
 
-// Manual entry — the fallback path when voice isn't available or a demo
-// needs a guaranteed-working alternative (see VoiceControl for the primary
-// tap-to-talk flow).
 export function MicButton({ onSubmit }: { onSubmit: (input: LogLineInput) => Promise<void> }) {
   const [description, setDescription] = useState("");
   const [quantity, setQuantity] = useState("");
@@ -25,6 +22,7 @@ export function MicButton({ onSubmit }: { onSubmit: (input: LogLineInput) => Pro
   const [damage, setDamage] = useState("");
   const [lineStatus, setLineStatus] = useState<"received" | "missing">("received");
   const [submitting, setSubmitting] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -50,57 +48,84 @@ export function MicButton({ onSubmit }: { onSubmit: (input: LogLineInput) => Pro
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3 rounded-lg border border-border bg-surface p-4">
-      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Manual entry</div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <input
-          className={`col-span-2 ${inputClass}`}
-          placeholder="Material, e.g. M8 bolts"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-        />
-        <input
-          className={inputClass}
-          placeholder="Qty"
-          type="number"
-          min="0"
-          value={quantity}
-          onChange={(e) => setQuantity(e.target.value)}
-        />
-        <select className={inputClass} value={unit} onChange={(e) => setUnit(e.target.value)}>
-          {UNITS.map((u) => (
-            <option key={u} value={u}>
-              {u}
-            </option>
-          ))}
-        </select>
+      <div className="flex items-center justify-between">
+        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Manual entry</div>
+        <button
+          type="button"
+          onClick={() => setCollapsed((v) => !v)}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
+          aria-label={collapsed ? "Expand" : "Collapse"}
+        >
+          <svg
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            className={`h-4 w-4 transition-transform ${collapsed ? "" : "rotate-180"}`}
+          >
+            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+          </svg>
+        </button>
       </div>
-      <div className="grid grid-cols-2 gap-2">
-        <input
-          className={inputClass}
-          placeholder="Pallet #"
-          type="number"
-          min="0"
-          value={pallet}
-          onChange={(e) => setPallet(e.target.value)}
-        />
-        <input
-          className={inputClass}
-          placeholder="Damage noted (optional)"
-          value={damage}
-          onChange={(e) => setDamage(e.target.value)}
-        />
-      </div>
-      <select className={inputClass} value={lineStatus} onChange={(e) => setLineStatus(e.target.value as "received" | "missing")}>
-        <option value="received">Received</option>
-        <option value="missing">Missing</option>
-      </select>
-      <button
-        type="submit"
-        disabled={submitting}
-        className="w-full rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-opacity disabled:opacity-50"
-      >
-        {submitting ? "Logging…" : "Log line"}
-      </button>
+
+      {!collapsed && (
+        <>
+          {/* Material + Qty + Unit */}
+          <div className="flex flex-col gap-2 md:grid md:grid-cols-4">
+            <input
+              className={`${inputClass} md:col-span-2`}
+              placeholder="Material, e.g. M8 bolts"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+            <input
+              className={inputClass}
+              placeholder="Qty"
+              type="number"
+              min="0"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+            />
+            <select className={inputClass} value={unit} onChange={(e) => setUnit(e.target.value)}>
+              {UNITS.map((u) => (
+                <option key={u} value={u}>
+                  {u}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Pallet + Damage */}
+          <div className="flex flex-col gap-2 md:grid md:grid-cols-2">
+            <input
+              className={inputClass}
+              placeholder="Pallet #"
+              type="number"
+              min="0"
+              value={pallet}
+              onChange={(e) => setPallet(e.target.value)}
+            />
+            <input
+              className={inputClass}
+              placeholder="Damage noted (optional)"
+              value={damage}
+              onChange={(e) => setDamage(e.target.value)}
+            />
+          </div>
+
+          {/* Status */}
+          <select className={inputClass} value={lineStatus} onChange={(e) => setLineStatus(e.target.value as "received" | "missing")}>
+            <option value="received">Received</option>
+            <option value="missing">Missing</option>
+          </select>
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full rounded-lg bg-accent px-4 py-3 text-base font-semibold text-accent-foreground transition-opacity active:opacity-80 disabled:opacity-50"
+          >
+            {submitting ? "Logging\u2026" : "Log line"}
+          </button>
+        </>
+      )}
     </form>
   );
 }

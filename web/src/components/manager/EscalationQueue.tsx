@@ -29,7 +29,7 @@ export function EscalationQueue({
         {pending.length === 0 ? (
           <p className="text-sm text-muted-foreground">No escalations pending &mdash; all clear.</p>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2">
             {pending.map((e) => (
               <EscalationCard key={e.id} escalation={e} onDecide={onDecide} />
             ))}
@@ -42,7 +42,7 @@ export function EscalationQueue({
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Decided ({decided.length})
           </h2>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2">
             {decided.map((e) => (
               <EscalationCard key={e.id} escalation={e} onDecide={onDecide} />
             ))}

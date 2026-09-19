@@ -38,20 +38,31 @@ export function EscalationCard({
         pending ? "border-warning-border bg-warning-bg/40" : "border-border bg-surface"
       )}
     >
-      <div className="flex items-start justify-between gap-3">
+      {/* Title row: stacks vertically on mobile, side-by-side on md+ */}
+      <div className="flex flex-col gap-1.5 md:flex-row md:items-start md:justify-between md:gap-3">
         <div>
           <div className="font-medium text-foreground">{escalation.material_description}</div>
           <div className="text-sm text-muted-foreground">
             {escalation.discrepancy?.damage_description ?? escalation.discrepancy?.type ?? "Unknown issue"}
-            {escalation.discrepancy && (
-              <span className="font-mono tabular-nums"> &middot; &euro;{escalation.discrepancy.total_value_eur.toFixed(2)}</span>
-            )}
           </div>
+          {/* Euro value on its own line on mobile */}
+          {escalation.discrepancy && (
+            <div className="mt-0.5 font-mono text-sm tabular-nums text-muted-foreground md:hidden">
+              &euro;{escalation.discrepancy.total_value_eur.toFixed(2)}
+            </div>
+          )}
+          {/* Euro value inline on desktop */}
+          {escalation.discrepancy && (
+            <div className="hidden text-sm text-muted-foreground md:block">
+              <span className="font-mono tabular-nums">&euro;{escalation.discrepancy.total_value_eur.toFixed(2)}</span>
+            </div>
+          )}
         </div>
+        {/* Severity badge: below title on mobile (rendered after the text block), beside it on md+ */}
         {escalation.damage_assessment && (
           <span
             className={clsx(
-              "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
+              "self-start rounded-full px-2 py-0.5 text-xs font-medium md:shrink-0",
               SEVERITY_STYLES[escalation.damage_assessment.severity]
             )}
           >
@@ -70,7 +81,7 @@ export function EscalationCard({
             loading="lazy"
             decoding="async"
             onError={() => setPhotoUnavailable(true)}
-            className="max-h-64 w-full object-contain transition-transform group-hover:scale-[1.02]"
+            className="max-h-64 w-full rounded-t-lg object-contain transition-transform group-hover:scale-[1.02]"
           />
           <div className="bg-surface-secondary px-3 py-2 text-xs text-muted-foreground">Open evidence photo</div>
         </a>
@@ -89,7 +100,7 @@ export function EscalationCard({
           onClick={() => handle("accepted")}
           disabled={busy || !pending}
           className={clsx(
-            "flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-opacity disabled:opacity-60",
+            "flex-1 rounded-lg px-4 py-3 text-sm font-medium transition-opacity disabled:opacity-60",
             escalation.status === "accepted" ? "bg-green-600 text-white" : "bg-accent text-accent-foreground"
           )}
         >
@@ -99,7 +110,7 @@ export function EscalationCard({
           onClick={() => handle("rejected")}
           disabled={busy || !pending}
           className={clsx(
-            "flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-opacity disabled:opacity-60",
+            "flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-opacity disabled:opacity-60",
             escalation.status === "rejected"
               ? "border-red-600 bg-red-600 text-white"
               : "border-border text-foreground hover:bg-surface-secondary"

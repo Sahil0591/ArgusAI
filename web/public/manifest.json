@@ -1,0 +1,10 @@
+{
+  "name": "ArgusAI",
+  "short_name": "Argus",
+  "description": "Voice-driven warehouse goods receipt",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0b",
+  "theme_color": "#2f5fd6",
+  "icons": []
+}

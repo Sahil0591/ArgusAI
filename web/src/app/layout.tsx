@@ -1,13 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import { Nav } from "@/components/shared/Nav";
 import "./globals.css";
 
-// IBM Plex over the default Geist/Arial stack: real enterprise/engineering
-// character (IBM's own industrial heritage) that reads deliberately in a
-// warehouse/SAP-adjacent tool, and a matching mono for material numbers,
-// PO references, and delivery IDs — not on the "every AI UI" shortlist
-// (Inter/Roboto/Geist/etc.) either.
 const plexSans = IBM_Plex_Sans({
   variable: "--font-plex-sans",
   subsets: ["latin"],
@@ -23,6 +18,17 @@ const plexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "ArgusAI",
   description: "Voice-driven warehouse goods receipt",
+  manifest: "/manifest.json",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#2f5fd6" },
+    { media: "(prefers-color-scheme: dark)", color: "#7c9df5" },
+  ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -31,7 +37,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${plexSans.variable} ${plexMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-canvas text-foreground">
+      <body className="min-h-full flex flex-col bg-canvas text-foreground pb-16 md:pb-0">
         <Nav />
         <div className="flex flex-1 flex-col">{children}</div>
       </body>

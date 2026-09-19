@@ -1,9 +1,11 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
 import { PURCHASE_ORDERS, getVendor } from "@/lib/po-catalog";
+import type { DeliverySummary } from "@/lib/types";
 
 export default function Home() {
   const router = useRouter();
@@ -11,6 +13,11 @@ export default function Home() {
   const [poNumber, setPoNumber] = useState(PURCHASE_ORDERS[0].EBELN);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deliveries, setDeliveries] = useState<DeliverySummary[]>([]);
+
+  useEffect(() => {
+    apiClient.listDeliveries().then(setDeliveries).catch(() => {});
+  }, []);
 
   const startDelivery = async () => {
     setStarting(true);
@@ -26,7 +33,7 @@ export default function Home() {
   };
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center px-6 py-16">
+    <main className="flex flex-1 flex-col items-center px-4 py-12 sm:px-6 sm:py-16">
       <div className="w-full max-w-sm text-center">
         <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-accent text-lg font-bold text-accent-foreground">
           A
@@ -58,13 +65,48 @@ export default function Home() {
           <button
             onClick={startDelivery}
             disabled={starting}
-            className="mt-1 w-full rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-accent-foreground transition-opacity disabled:opacity-50"
+            className="mt-1 w-full rounded-lg bg-accent px-5 py-3.5 text-base font-semibold text-accent-foreground transition-opacity disabled:opacity-50"
           >
-            {starting ? "Starting…" : "Start new delivery"}
+            {starting ? "Starting..." : "Start new delivery"}
           </button>
           {error && <p className="text-sm text-danger">{error}</p>}
         </div>
       </div>
+
+      {deliveries.length > 0 && (
+        <div className="mt-8 w-full max-w-sm">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Recent deliveries
+          </h2>
+          <ul className="overflow-hidden rounded-xl border border-border bg-surface divide-y divide-border">
+            {deliveries.slice(0, 8).map((d) => (
+              <li key={d.id} className="flex min-h-[48px] items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <span className="block font-medium text-foreground font-mono text-sm">{d.po_number}</span>
+                  <span className="block text-xs text-muted-foreground truncate">{getVendor(d.vendor_id)?.NAME1 ?? d.vendor_id}</span>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span
+                    className={
+                      d.status === "completed"
+                        ? "rounded-full bg-success-bg px-2.5 py-0.5 text-xs font-medium text-success"
+                        : "rounded-full bg-warning-bg px-2.5 py-0.5 text-xs font-medium text-warning"
+                    }
+                  >
+                    {d.status === "completed" ? "Completed" : "In progress"}
+                  </span>
+                  <Link
+                    href={`/receive/${d.id}`}
+                    className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-foreground hover:bg-surface-secondary"
+                  >
+                    {d.status === "completed" ? "View" : "Continue"}
+                  </Link>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </main>
   );
 }

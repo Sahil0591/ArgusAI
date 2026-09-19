@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { apiClient } from "@/lib/api-client";
 import { useEventStream } from "@/lib/use-event-stream";
 import { useAppStore } from "@/lib/store";
@@ -21,6 +22,15 @@ const REFRESH_ON = new Set([
   "escalation_decided",
 ]);
 
+type Tab = "queue" | "assessments" | "feed" | "history";
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: "queue", label: "Queue" },
+  { id: "assessments", label: "Assessments" },
+  { id: "feed", label: "Feed" },
+  { id: "history", label: "History" },
+];
+
 export default function DashboardPage() {
   useEventStream();
 
@@ -28,6 +38,7 @@ export default function DashboardPage() {
   const [selectedDelivery, setSelectedDelivery] = useState<string | "all">("all");
   const [escalations, setEscalations] = useState<EscalationView[]>([]);
   const [assessmentFeed, setAssessmentFeed] = useState<AssessmentFeedItem[]>([]);
+  const [activeTab, setActiveTab] = useState<Tab>("queue");
 
   const allStreamEvents = useAppStore((s) => s.events);
   const feedEvents = useMemo(
@@ -117,6 +128,7 @@ export default function DashboardPage() {
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 px-4 py-6">
+      {/* Header - always visible */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Manager Dashboard</h1>
@@ -126,10 +138,68 @@ export default function DashboardPage() {
         </div>
         <DeliveryFilter deliveries={deliveries} value={selectedDelivery} onChange={setSelectedDelivery} />
       </div>
-      <EscalationQueue escalations={escalations} onDecide={handleDecide} />
-      <AssessmentGrid items={assessmentFeed} />
-      <DeliveriesHistory deliveries={deliveries} />
-      <LiveFeed events={feedEvents} />
+
+      {/* Mobile tab bar - hidden on md+ */}
+      <div className="md:hidden">
+        <div
+          className="relative flex overflow-x-auto border-b border-border"
+          style={{ scrollbarWidth: "none", msOverflowStyle: "none" } as React.CSSProperties}
+        >
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={[
+                "relative shrink-0 whitespace-nowrap px-4 pb-2 pt-1 text-sm font-medium transition-colors",
+                activeTab === tab.id ? "text-foreground" : "text-muted-foreground",
+              ].join(" ")}
+            >
+              {tab.label}
+              {activeTab === tab.id && (
+                <motion.div
+                  layoutId="tab-underline"
+                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-foreground"
+                  transition={{ type: "spring", stiffness: 500, damping: 40 }}
+                />
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Mobile: animated tab content */}
+        <div className="mt-4 overflow-hidden">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+            >
+              {activeTab === "queue" && (
+                <EscalationQueue escalations={escalations} onDecide={handleDecide} />
+              )}
+              {activeTab === "assessments" && (
+                <AssessmentGrid items={assessmentFeed} />
+              )}
+              {activeTab === "feed" && (
+                <LiveFeed events={feedEvents} />
+              )}
+              {activeTab === "history" && (
+                <DeliveriesHistory deliveries={deliveries} />
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Desktop layout - all sections visible, hidden below md */}
+      <div className="hidden md:flex md:flex-col md:gap-6">
+        <EscalationQueue escalations={escalations} onDecide={handleDecide} />
+        <AssessmentGrid items={assessmentFeed} />
+        <DeliveriesHistory deliveries={deliveries} />
+        <LiveFeed events={feedEvents} />
+      </div>
     </main>
   );
 }

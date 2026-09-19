@@ -13,7 +13,7 @@ export function LiveFeed({ events }: { events: StreamEvent[] }) {
       <div className="border-b border-border bg-surface-secondary px-4 py-2 text-sm font-medium text-muted-foreground">
         Live feed
       </div>
-      <ul className="max-h-80 overflow-y-auto px-4 py-3 text-sm">
+      <ul className="max-h-[60vh] overflow-y-auto px-4 py-3 text-sm md:max-h-80">
         {recent.length === 0 && <li className="text-muted-foreground/70">No activity yet.</li>}
         <AnimatePresence initial={false}>
           {recent.map((e) => (

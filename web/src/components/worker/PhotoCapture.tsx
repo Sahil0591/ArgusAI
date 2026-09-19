@@ -13,18 +13,22 @@ function CameraIcon() {
   );
 }
 
-// Opens the device camera directly (getUserMedia + live preview + shutter)
-// rather than delegating to a file-picker's `capture` hint, which on
-// desktop just opens a plain file dialog and on mobile still lets the user
-// wander into the gallery. Upload stays available as an explicit fallback
-// for when the camera is denied, unavailable, or the clerk just has an
-// existing photo to use instead.
+function XIcon() {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+      <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+    </svg>
+  );
+}
+
 export function PhotoCapture({
   material,
   onCapture,
+  onCancel,
 }: {
   material: string;
   onCapture: (photo: Blob) => Promise<void>;
+  onCancel?: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -103,48 +107,69 @@ export function PhotoCapture({
     }
   };
 
+  const handleCancel = () => {
+    stopCamera();
+    onCancel?.();
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: -6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: "easeOut" }}
-      className="flex flex-col items-center gap-3 rounded-lg border-2 border-dashed border-warning-border bg-warning-bg p-4 text-center"
+      className="flex flex-col gap-3 rounded-lg border-2 border-dashed border-warning-border bg-warning-bg p-4"
     >
-      <p className="text-sm font-medium text-warning">Damage flagged on {material} &mdash; take a photo to continue</p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-medium text-warning">
+          Damage flagged on {material} - take a photo to continue
+        </p>
+        {onCancel && (
+          <button
+            type="button"
+            onClick={handleCancel}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
+            aria-label="Cancel"
+          >
+            <XIcon />
+          </button>
+        )}
+      </div>
 
-      {/* Always mounted (never conditionally rendered) so the ref exists
-          the moment getUserMedia resolves — gating this behind state
-          "live" meant the stream had nowhere to attach to, and every
-          capture silently no-op'd on a permanently-zero videoWidth. */}
       <div
         hidden={state === "unavailable"}
-        className="relative w-full max-w-xs overflow-hidden rounded-lg bg-black"
+        className="relative w-full md:max-w-md overflow-hidden rounded-lg bg-black"
       >
         <video ref={videoRef} autoPlay playsInline muted className="aspect-4/3 w-full object-cover" />
         {state === "starting" && (
           <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/60 text-sm font-medium text-white">
             <CameraIcon />
-            Starting camera…
+            Starting camera...
           </div>
         )}
         {state === "uploading" && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-sm font-medium text-white">
-            Analyzing…
+            Analyzing...
           </div>
         )}
       </div>
 
       {state === "unavailable" && (
-        <p className="text-xs text-muted-foreground">Camera unavailable{error ? `: ${error}` : ""} — use upload below.</p>
+        <p className="text-xs text-muted-foreground">
+          Camera unavailable{error ? `: ${error}` : ""} - use upload below.
+        </p>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-2">
         {state === "live" && (
-          <button onClick={capture} className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground">
-            Capture
+          <button
+            onClick={capture}
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-accent py-3 text-base font-semibold text-accent-foreground transition-opacity active:opacity-80"
+          >
+            <CameraIcon />
+            Capture photo
           </button>
         )}
-        <label className="cursor-pointer text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground has-disabled:opacity-50">
+        <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-border bg-canvas py-3 text-sm font-medium text-foreground transition-opacity hover:bg-surface has-disabled:cursor-not-allowed has-disabled:opacity-50">
           {state === "unavailable" ? "Upload photo" : "Upload instead"}
           <input
             ref={fileInputRef}

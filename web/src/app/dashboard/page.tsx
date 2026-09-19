@@ -40,8 +40,17 @@ export default function DashboardPage() {
 
   const refresh = useCallback(async () => {
     const raw = await apiClient.listEscalations(selectedDelivery === "all" ? undefined : selectedDelivery);
-    const deliveryIds =
-      selectedDelivery === "all" ? [...new Set(raw.map((e) => e.delivery_id))] : [selectedDelivery];
+    // Deliveries with zero escalations (e.g. an auto-accepted overage or
+    // shortage) still need their events pulled for the assessment grid —
+    // escalation-derived ids alone would silently hide anything that never
+    // needed a manager, which is most of what the grid exists to show off.
+    let deliveryIds: string[];
+    if (selectedDelivery === "all") {
+      const allDeliveries = await apiClient.listDeliveries().catch(() => []);
+      deliveryIds = [...new Set([...allDeliveries.map((d) => d.id), ...raw.map((e) => e.delivery_id)])];
+    } else {
+      deliveryIds = [selectedDelivery];
+    }
     const details = await Promise.all(deliveryIds.map((id) => apiClient.getDelivery(id).catch(() => null)));
     const validDetails = details.filter((d): d is NonNullable<typeof d> => d !== null);
     const eventsByDeliveryId = Object.fromEntries(validDetails.map((d) => [d.id, d.events]));

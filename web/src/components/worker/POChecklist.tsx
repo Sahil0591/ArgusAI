@@ -18,6 +18,7 @@ export function POChecklist({
       <ul className="divide-y divide-border">
         {lines.map((line) => {
           const hasDamage = line.discrepancies.some((d) => d.type === "damage");
+          const hasOverage = line.discrepancies.some((d) => d.type === "overage");
           const complete = line.received_qty >= line.ordered_qty;
           const matched = complete && !hasDamage;
           return (
@@ -30,6 +31,11 @@ export function POChecklist({
                 {hasDamage && (
                   <span className="rounded-full border border-warning-border bg-warning-bg px-2 py-0.5 text-xs font-medium text-warning">
                     damage
+                  </span>
+                )}
+                {hasOverage && (
+                  <span className="rounded-full border border-accent/40 bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent">
+                    over-received &middot; auto-accepted
                   </span>
                 )}
                 {matched && (

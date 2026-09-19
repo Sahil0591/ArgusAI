@@ -121,6 +121,42 @@ export default function SimulatorPage() {
     }
   };
 
+  // --- overage scenario (received more than ordered) ---
+  const [runningOverage, setRunningOverage] = useState(false);
+  const [overageLog, setOverageLog] = useState<LogEntry[]>([]);
+  const [overageDeliveryId, setOverageDeliveryId] = useState<string | null>(null);
+
+  const appendOverageLog = (text: string, tone: LogEntry["tone"] = "info") => {
+    setOverageLog((prev) => [...prev, { text, tone }]);
+  };
+
+  const runOverageScenario = async () => {
+    setRunningOverage(true);
+    setOverageLog([]);
+    setOverageDeliveryId(null);
+    try {
+      const id = crypto.randomUUID();
+      appendOverageLog(`Starting delivery against ${DEMO_PO}…`);
+      await apiClient.startDelivery(id, { po_number: DEMO_PO });
+      setOverageDeliveryId(id);
+      await delay(500);
+
+      appendOverageLog('Clerk: "58 PTFE spiral wound gaskets" (50 ordered)');
+      const res = await apiClient.logLine({
+        delivery_id: id,
+        material_description: "PTFE spiral wound gaskets",
+        quantity: 58,
+        unit_of_measure: "PC",
+      });
+      appendOverageLog(res.speech, "speech");
+      appendOverageLog("Overage auto-accepted — no manager review needed.");
+    } catch (err) {
+      appendOverageLog(`Error: ${(err as Error).message}`, "error");
+    } finally {
+      setRunningOverage(false);
+    }
+  };
+
   // --- manual step-by-step mode ---
   const [manualPo, setManualPo] = useState(PURCHASE_ORDERS[0].EBELN);
   const [manualDeliveryId, setManualDeliveryId] = useState<string | null>(null);
@@ -244,6 +280,40 @@ export default function SimulatorPage() {
         {log.length > 0 && (
           <div className="rounded-lg border border-border bg-surface-secondary p-3">
             <LogList entries={log} />
+          </div>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4">
+        <div>
+          <h2 className="font-medium text-foreground">Run overage scenario</h2>
+          <p className="text-sm text-muted-foreground">
+            A separate one-line delivery against {DEMO_PO}: 58 PTFE gaskets logged against 50 ordered. Overage is
+            auto-accepted by policy, same as a minor shortage &mdash; no photo, no manager involved.
+          </p>
+        </div>
+        <button
+          onClick={runOverageScenario}
+          disabled={runningOverage}
+          className="w-fit rounded-lg bg-accent px-5 py-2 text-sm font-medium text-accent-foreground transition-opacity disabled:opacity-50"
+        >
+          {runningOverage ? "Running…" : "Run overage scenario"}
+        </button>
+
+        {overageDeliveryId && (
+          <div className="flex gap-3 text-sm">
+            <Link href={`/receive/${overageDeliveryId}`} className="text-accent underline underline-offset-2">
+              Open worker view
+            </Link>
+            <Link href="/dashboard" className="text-accent underline underline-offset-2">
+              Open dashboard
+            </Link>
+          </div>
+        )}
+
+        {overageLog.length > 0 && (
+          <div className="rounded-lg border border-border bg-surface-secondary p-3">
+            <LogList entries={overageLog} />
           </div>
         )}
       </section>

@@ -113,11 +113,13 @@ export function buildEnrichmentMaps(events: DeliveryEvent[]): EnrichmentMaps {
   return maps;
 }
 
-// Tracks each discrepancy's photo -> vision -> policy lifecycle for the
-// dashboard's parallel assessment grid: "assessing" from photo_uploaded
-// until a policy_decision lands, then "resolved". Multiple discrepancies
-// naturally interleave here when several photos are in flight at once
-// (e.g. during a scripted simulator run), which is the point.
+// Tracks each discrepancy's resolution lifecycle for the dashboard's
+// parallel assessment grid. Damage goes "assessing" from photo_uploaded
+// until a policy_decision lands, then "resolved". Overage has no photo
+// step (it's a deterministic policy call made inline in log_line) so it
+// jumps straight to "resolved" the moment its policy_decision arrives.
+// Multiple discrepancies naturally interleave here when several are in
+// flight at once (e.g. during a scripted simulator run), which is the point.
 export function deriveAssessmentFeed(delivery_id: string, events: DeliveryEvent[]): AssessmentFeedItem[] {
   const maps = buildEnrichmentMaps(events);
   const items = new Map<string, AssessmentFeedItem>();

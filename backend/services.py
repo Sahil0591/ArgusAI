@@ -120,6 +120,20 @@ class DeliveryService:
             discrepancies.append(disc)
             photo_requested = True
 
+        # Overage (received > ordered) is deterministic - unlike damage it
+        # doesn't need a photo/vision pass, so resolve it against the policy
+        # engine synchronously, right here.
+        overage_disc: Discrepancy | None = None
+        if new_qty > po_line.MENGE:
+            overage_disc = Discrepancy(
+                type=DiscrepancyType.OVERAGE,
+                expected_qty=po_line.MENGE,
+                actual_qty=new_qty,
+                unit_value_eur=po_line.NETPR,
+                total_value_eur=po_line.NETPR * (new_qty - po_line.MENGE),
+            )
+            discrepancies.append(overage_disc)
+
         # Build event data
         event_data = {
             "po_line": po_line.EBELP,
@@ -140,12 +154,32 @@ class DeliveryService:
         )
         saved = self.store.add_event(event)
 
+        overage_reason: str | None = None
+        if overage_disc:
+            from backend.policy import evaluate_discrepancy
+
+            vendor = get_vendor(delivery.vendor_id)
+            policy_decision = evaluate_discrepancy(
+                overage_disc, None, vendor.NAME1 if vendor else "Unknown", delivery.po_number
+            )
+            self.store.add_event(Event(
+                delivery_id=spoken.delivery_id,
+                type=EventType.POLICY_DECISION,
+                data={
+                    "discrepancy_id": overage_disc.id,
+                    "decision": policy_decision.decision.value,
+                    "reason": policy_decision.reason,
+                    "claim": None,
+                },
+            ))
+            overage_reason = policy_decision.reason
+
         # Build speech response
         speech_parts = [f"Logged {spoken.quantity:.0f} {po_line.MEINS} of {po_line.MAKTX}."]
         if spoken.damage_noted:
             speech_parts.append(f"Damage noted: {spoken.damage_noted}. Please take a photo.")
-        if new_qty > po_line.MENGE:
-            speech_parts.append(f"Warning: received {new_qty:.0f} but only {po_line.MENGE:.0f} ordered.")
+        if overage_reason:
+            speech_parts.append(overage_reason)
 
         return {
             "speech": " ".join(speech_parts),

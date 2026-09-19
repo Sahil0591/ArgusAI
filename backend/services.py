@@ -98,12 +98,17 @@ class DeliveryService:
         if not po_line:
             return self._fail_event(spoken, f"Could not match '{spoken.material_description}' to any PO line")
 
-        # Track received quantity
-        if spoken.delivery_id not in self._received:
-            self._received[spoken.delivery_id] = {}
-        prev_qty = self._received[spoken.delivery_id].get(po_line.EBELP, 0.0)
-        new_qty = prev_qty + spoken.quantity
-        self._received[spoken.delivery_id][po_line.EBELP] = new_qty
+        # Derive the running received quantity from persisted events so a
+        # container restart cannot reset the progress shown to the clerk.
+        prev_qty = sum(
+            float(event.data.get("this_qty", 0.0))
+            for event in self.store.get_events(spoken.delivery_id)
+            if event.type == EventType.LINE_LOGGED
+            and event.data.get("po_line") == po_line.EBELP
+            and event.data.get("line_status", "received") == "received"
+        )
+        is_missing = spoken.line_status == "missing"
+        new_qty = prev_qty if is_missing else prev_qty + spoken.quantity
 
         # Detect discrepancies
         discrepancies: list[Discrepancy] = []
@@ -142,6 +147,8 @@ class DeliveryService:
             "ordered_qty": po_line.MENGE,
             "received_qty": new_qty,
             "this_qty": spoken.quantity,
+            "line_status": spoken.line_status,
+            "missing_qty": spoken.quantity if is_missing else 0.0,
             "unit_of_measure": spoken.unit_of_measure or po_line.MEINS,
             "pallet_number": spoken.pallet_number,
             "discrepancies": [d.model_dump() for d in discrepancies],
@@ -175,7 +182,11 @@ class DeliveryService:
             overage_reason = policy_decision.reason
 
         # Build speech response
-        speech_parts = [f"Logged {spoken.quantity:.0f} {po_line.MEINS} of {po_line.MAKTX}."]
+        speech_parts = [
+            f"Marked {spoken.quantity:.0f} {po_line.MEINS} of {po_line.MAKTX} as missing."
+            if is_missing
+            else f"Logged {spoken.quantity:.0f} {po_line.MEINS} of {po_line.MAKTX}."
+        ]
         if spoken.damage_noted:
             speech_parts.append(f"Damage noted: {spoken.damage_noted}. Please take a photo.")
         if overage_reason:
@@ -186,6 +197,8 @@ class DeliveryService:
             "event_id": saved.id,
             "po_line": po_line.EBELP,
             "material_number": po_line.MATNR,
+            "material_description": po_line.MAKTX,
+            "line_status": spoken.line_status,
             "discrepancies": [d.model_dump() for d in discrepancies],
             "photo_requested": photo_requested,
         }
@@ -223,6 +236,7 @@ class DeliveryService:
 
         po = get_po(delivery.po_number)
         po_line = fuzzy_match_po_line(po, material_description) if po else None
+        canonical_description = po_line.MAKTX if po_line else material_description
 
         disc = Discrepancy(
             type=DiscrepancyType.DAMAGE,
@@ -237,14 +251,14 @@ class DeliveryService:
             type=EventType.DAMAGE_REPORTED,
             data={
                 "discrepancy": disc.model_dump(),
-                "material_description": material_description,
+                "material_description": canonical_description,
                 "material_number": po_line.MATNR if po_line else None,
             },
         )
         saved = self.store.add_event(event)
 
         return {
-            "speech": f"Damage reported for {material_description}: {description}. Please take a photo.",
+            "speech": f"Damage reported for {canonical_description}: {description}. Please take a photo.",
             "event_id": saved.id,
             "discrepancy_id": disc.id,
             "photo_requested": True,
@@ -296,7 +310,18 @@ class DeliveryService:
         event = Event(
             delivery_id=spoken.delivery_id,
             type=EventType.LINE_LOGGED,
-            data={"raw_transcript": spoken.raw_transcript, "error": reason},
+            data={
+                "raw_transcript": spoken.raw_transcript,
+                "error": reason,
+                "material_description": spoken.material_description,
+                "material_number": None,
+                "po_line": None,
+                "ordered_qty": 0.0,
+                "received_qty": 0.0,
+                "this_qty": spoken.quantity,
+                "unit_of_measure": spoken.unit_of_measure,
+                "line_status": "unmatched",
+            },
             needs_review=True,
         )
         self.store.add_event(event)

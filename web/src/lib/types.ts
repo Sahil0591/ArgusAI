@@ -120,12 +120,14 @@ export interface DeliveryDetail extends DeliverySummary {
 // --- Event `data` payload shapes, per event type (from backend/services.py & routes.py) ---
 
 export interface LineLoggedEventData {
-  po_line: string;
-  material_number: string;
+  po_line: string | null;
+  material_number: string | null;
   material_description: string;
   ordered_qty: number;
   received_qty: number; // cumulative for this po_line within the delivery
   this_qty: number;
+  missing_qty?: number;
+  line_status?: "received" | "missing" | "unmatched";
   unit_of_measure: string;
   pallet_number: number | null;
   discrepancies: Discrepancy[];
@@ -221,6 +223,7 @@ export interface LogLineRequest {
   quantity: number;
   unit_of_measure?: string;
   damage_noted?: string;
+  line_status?: "received" | "missing";
   raw_transcript?: string;
 }
 
@@ -231,6 +234,8 @@ export interface LogLineResponse {
   event_id?: number;
   po_line?: string;
   material_number?: string;
+  material_description?: string;
+  line_status?: "received" | "missing";
   discrepancies?: Discrepancy[];
   photo_requested?: boolean;
   error?: boolean;
@@ -332,6 +337,8 @@ export interface ReceiptLineView {
   material_description: string;
   ordered_qty: number;
   received_qty: number;
+  missing_qty: number;
+  unmatched?: boolean;
   unit_of_measure: string;
   discrepancies: Discrepancy[];
 }

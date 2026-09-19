@@ -19,8 +19,9 @@ export function POChecklist({
         {lines.map((line) => {
           const hasDamage = line.discrepancies.some((d) => d.type === "damage");
           const hasOverage = line.discrepancies.some((d) => d.type === "overage");
+          const hasMissing = line.missing_qty > 0;
           const complete = line.received_qty >= line.ordered_qty;
-          const matched = complete && !hasDamage;
+          const matched = !line.unmatched && complete && !hasDamage && !hasMissing;
           return (
             <li key={line.po_line} className="flex items-center justify-between gap-3 px-4 py-3">
               <div className="min-w-0">
@@ -38,6 +39,16 @@ export function POChecklist({
                     over-received &middot; auto-accepted
                   </span>
                 )}
+                {hasMissing && (
+                  <span className="rounded-full border border-danger/40 bg-danger-bg px-2 py-0.5 text-xs font-medium text-danger">
+                    missing &middot; {line.missing_qty} {line.unit_of_measure}
+                  </span>
+                )}
+                {line.unmatched && (
+                  <span className="rounded-full border border-warning-border bg-warning-bg px-2 py-0.5 text-xs font-medium text-warning">
+                    needs review
+                  </span>
+                )}
                 {matched && (
                   <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-success" aria-label="Matched">
                     <path
@@ -53,7 +64,9 @@ export function POChecklist({
                     complete ? "text-success" : "text-muted-foreground"
                   )}
                 >
-                  {line.received_qty} / {line.ordered_qty} {line.unit_of_measure}
+                  {line.unmatched
+                    ? `logged ${line.received_qty} ${line.unit_of_measure}`
+                    : `${line.received_qty} / ${line.ordered_qty} ${line.unit_of_measure}`}
                 </span>
               </div>
             </li>

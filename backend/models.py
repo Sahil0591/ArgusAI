@@ -88,6 +88,7 @@ class SpokenLine(BaseModel):
     quantity: float
     unit_of_measure: str = "CTN"
     damage_noted: str | None = None
+    line_status: str = "received"  # received or missing
     raw_transcript: str = ""
 
 

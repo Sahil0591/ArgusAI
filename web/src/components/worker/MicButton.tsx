@@ -7,6 +7,7 @@ export interface LogLineInput {
   quantity: number;
   unit_of_measure: string;
   damage_noted?: string;
+  line_status?: "received" | "missing";
   pallet_number?: number;
 }
 
@@ -22,6 +23,7 @@ export function MicButton({ onSubmit }: { onSubmit: (input: LogLineInput) => Pro
   const [unit, setUnit] = useState(UNITS[0]);
   const [pallet, setPallet] = useState("");
   const [damage, setDamage] = useState("");
+  const [lineStatus, setLineStatus] = useState<"received" | "missing">("received");
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -34,11 +36,13 @@ export function MicButton({ onSubmit }: { onSubmit: (input: LogLineInput) => Pro
         quantity: Number(quantity),
         unit_of_measure: unit,
         damage_noted: damage.trim() || undefined,
+        line_status: lineStatus,
         pallet_number: pallet ? Number(pallet) : undefined,
       });
       setDescription("");
       setQuantity("");
       setDamage("");
+      setLineStatus("received");
     } finally {
       setSubmitting(false);
     }
@@ -86,6 +90,10 @@ export function MicButton({ onSubmit }: { onSubmit: (input: LogLineInput) => Pro
           onChange={(e) => setDamage(e.target.value)}
         />
       </div>
+      <select className={inputClass} value={lineStatus} onChange={(e) => setLineStatus(e.target.value as "received" | "missing")}>
+        <option value="received">Received</option>
+        <option value="missing">Missing</option>
+      </select>
       <button
         type="submit"
         disabled={submitting}

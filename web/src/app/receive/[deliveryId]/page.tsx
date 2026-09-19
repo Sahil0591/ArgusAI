@@ -158,7 +158,7 @@ export default function ReceivePage() {
   }
 
   const vendorName = getVendor(delivery.vendor_id)?.NAME1 ?? delivery.vendor_id;
-  const hasReceivedLines = receiptLines.some((l) => l.received_qty > 0);
+  const hasDeliveryActivity = receiptLines.some((l) => l.received_qty > 0 || l.missing_qty > 0 || l.unmatched);
 
   if (completed) {
     const downloadJson = (filename: string, value: unknown) => {
@@ -208,6 +208,7 @@ export default function ReceivePage() {
             </div>
             <div className="flex flex-wrap gap-2">
               <button onClick={() => downloadJson(`${deliveryId}-report.json`, completed.report)} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-secondary">Download report</button>
+              <a href={apiClient.exportReportPdfUrl(deliveryId)} download={`${deliveryId}-report.pdf`} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-secondary">Download PDF</a>
               <button onClick={() => downloadJson(`${deliveryId}-goods-receipt.json`, completed.goodsReceipt)} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-secondary">Download GR JSON</button>
               <button onClick={() => downloadJson(`${deliveryId}-quality-notifications.json`, completed.qualityNotifications)} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-secondary">Download QN JSON</button>
             </div>
@@ -243,7 +244,7 @@ export default function ReceivePage() {
       </button>
 
       {pendingPhoto && <PhotoCapture material={pendingPhoto.material} onCapture={handlePhoto} />}
-      {hasReceivedLines && (
+      {hasDeliveryActivity && (
         <button
           onClick={handleComplete}
           disabled={completing}

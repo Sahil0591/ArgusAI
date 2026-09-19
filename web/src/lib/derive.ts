@@ -32,6 +32,7 @@ export function deriveReceiptLines(po_number: string, events: DeliveryEvent[]): 
         material_description: l.MAKTX,
         ordered_qty: l.MENGE,
         received_qty: 0,
+        missing_qty: 0,
         unit_of_measure: l.MEINS,
         discrepancies: [],
       },
@@ -51,10 +52,28 @@ export function deriveReceiptLines(po_number: string, events: DeliveryEvent[]): 
   for (const event of events) {
     if (event.type === "line_logged") {
       const data = event.data as unknown as LineLoggedEventData;
-      if (!data.po_line) continue; // unmatched line, no discrepancy to attach here
+      if (!data.po_line) {
+        const key = `unmatched:${event.id}`;
+        lines.set(key, {
+          po_line: key,
+          material_number: data.material_number ?? "UNMATCHED",
+          material_description: data.material_description || "Unmatched item",
+          ordered_qty: 0,
+          received_qty: data.line_status === "missing" ? 0 : data.this_qty,
+          missing_qty: data.line_status === "missing" ? data.this_qty : 0,
+          unit_of_measure: data.unit_of_measure ?? "EA",
+          discrepancies: [],
+          unmatched: true,
+        });
+        continue;
+      }
       const line = lines.get(data.po_line);
       if (line) {
-        line.received_qty = data.received_qty;
+        if (data.line_status === "missing") {
+          line.missing_qty += data.missing_qty ?? data.this_qty;
+        } else {
+          line.received_qty = data.received_qty;
+        }
         line.material_description = data.material_description ?? line.material_description;
         line.unit_of_measure = data.unit_of_measure ?? line.unit_of_measure;
       }

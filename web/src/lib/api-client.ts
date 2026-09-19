@@ -56,6 +56,7 @@ export const apiClient = {
   exportGoodsReceipt: (id: string) => request<GoodsReceiptDocument>(`/deliveries/${id}/export/gr`),
   exportQualityNotifications: (id: string) => request<QualityNotification[]>(`/deliveries/${id}/export/qn`),
   exportReport: (id: string) => request<DeliveryReport>(`/deliveries/${id}/export/report`),
+  exportReportPdfUrl: (id: string) => `${API_BASE}/deliveries/${encodeURIComponent(id)}/export/report.pdf`,
   photoUrl: (photoId: string) => `${API_BASE}/photos/${encodeURIComponent(photoId)}`,
 
   logLine: (body: LogLineRequest) =>

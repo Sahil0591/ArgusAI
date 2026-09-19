@@ -10,7 +10,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
 from backend import config
@@ -45,6 +45,7 @@ class LogLineRequest(BaseModel):
     quantity: float
     unit_of_measure: str = "CTN"
     damage_noted: str | None = None
+    line_status: str = "received"
     raw_transcript: str = ""
 
 class ClosePalletRequest(BaseModel):
@@ -120,6 +121,8 @@ async def live_tools():
         "You are ArgusAI, a hands-free voice assistant for warehouse goods receipt. "
         "You help receiving clerks log deliveries against purchase orders. "
         "When the clerk describes items they are receiving, use the log_line tool to record them. "
+        "If the clerk says an item is missing, still use log_line immediately with line_status='missing' "
+        "and the missing quantity; do not wait for a later received count. "
         "When they mention damage, use report_damage. "
         "When they finish a pallet, use close_pallet. "
         "When they ask about progress, use delivery_status. "
@@ -142,8 +145,9 @@ async def live_tools():
                             "quantity": {"type": "number", "description": "Number of units received"},
                             "unit_of_measure": {"type": "string", "description": "Unit: CTN (cartons), PC (pieces), PKG (packages)"},
                             "damage_noted": {"type": "string", "description": "Description of any damage if mentioned"},
+                            "line_status": {"type": "string", "enum": ["received", "missing"], "description": "Use missing when the clerk says the item is missing; otherwise received"},
                         },
-                        "required": ["delivery_id", "material_description", "quantity"],
+                        "required": ["delivery_id", "material_description", "quantity", "line_status"],
                     },
                 },
                 {
@@ -207,6 +211,7 @@ async def tool_log_line(req: LogLineRequest):
             quantity=req.quantity,
             unit_of_measure=req.unit_of_measure,
             damage_noted=req.damage_noted,
+            line_status=req.line_status,
             raw_transcript=req.raw_transcript,
         )
         return service.log_line(spoken)
@@ -494,6 +499,8 @@ async def export_goods_receipt(delivery_id: str):
     for event in events:
         if event.type != EventType.LINE_LOGGED:
             continue
+        if event.data.get("line_status", "received") != "received":
+            continue
         data = event.data
         ebelp = data.get("po_line")
         if not ebelp:
@@ -591,6 +598,8 @@ async def export_delivery_report(delivery_id: str):
     damaged_by_discrepancy: dict[str, float] = {}
     for event in store.get_events(delivery_id):
         if event.type == EventType.LINE_LOGGED and event.data.get("po_line"):
+            if event.data.get("line_status", "received") != "received":
+                continue
             line = event.data["po_line"]
             received_by_line[line] = received_by_line.get(line, 0.0) + float(event.data.get("this_qty", 0.0))
         elif event.type == EventType.DAMAGE_REPORTED:
@@ -619,6 +628,80 @@ async def export_delivery_report(delivery_id: str):
         "pending_escalations": sum(e.status.value == "pending" for e in escalations),
         "resolved_escalations": sum(e.status.value != "pending" for e in escalations),
     }
+
+
+def _pdf_escape(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def _build_text_pdf(lines: list[str]) -> bytes:
+    """Build a small dependency-free PDF for the operational report."""
+    content = ["BT", "/F1 11 Tf", "50 760 Td"]
+    for index, line in enumerate(lines):
+        if index:
+            content.append("0 -16 Td")
+        content.append(f"({_pdf_escape(line)}) Tj")
+    content.append("ET")
+    stream = "\n".join(content).encode("latin-1", errors="replace")
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream",
+    ]
+    pdf = bytearray(b"%PDF-1.4\n")
+    offsets = [0]
+    for number, obj in enumerate(objects, start=1):
+        offsets.append(len(pdf))
+        pdf.extend(f"{number} 0 obj\n".encode())
+        pdf.extend(obj)
+        pdf.extend(b"\nendobj\n")
+    xref = len(pdf)
+    pdf.extend(f"xref\n0 {len(objects) + 1}\n".encode())
+    pdf.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        pdf.extend(f"{offset:010d} 00000 n \n".encode())
+    pdf.extend(f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF".encode())
+    return bytes(pdf)
+
+
+@router.get("/deliveries/{delivery_id}/export/report.pdf")
+async def export_delivery_report_pdf(delivery_id: str):
+    """Download the same operational report as a printable PDF."""
+    report = await export_delivery_report(delivery_id)
+    store = get_store()
+    delivery = store.get_delivery(delivery_id)
+    events = store.get_events(delivery_id)
+    lines = [
+        "ArgusAI Delivery Report",
+        f"Delivery: {delivery_id}",
+        f"Purchase order: {report['po_number']}",
+        f"Status: {report['status']}",
+        "",
+        f"Ordered: {report['ordered_units']:.0f}    Received: {report['received_units']:.0f}",
+        f"Missing: {report['missing_units']:.0f} ({report['missing_lines']} lines)",
+        f"Damaged: {report['damaged_units']:.0f} ({report['damaged_lines']} lines)",
+        f"Over-received: {report['overage_units']:.0f}",
+        f"Pending escalations: {report['pending_escalations']}",
+        f"Resolved escalations: {report['resolved_escalations']}",
+        "",
+        "Line activity:",
+    ]
+    for event in events:
+        if event.type != EventType.LINE_LOGGED:
+            continue
+        data = event.data
+        description = data.get("material_description", "Unmatched item")
+        status = data.get("line_status", "received")
+        quantity = data.get("this_qty", 0)
+        lines.append(f"- {description}: {quantity:g} ({status})")
+    pdf = _build_text_pdf(lines[:45])
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{delivery_id}-report.pdf"'},
+    )
 
 
 # --- Escalation management ---

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+from datetime import date
 import json as json_module
 import os
 import traceback
@@ -13,13 +14,17 @@ from pydantic import BaseModel
 
 from backend import config
 from backend.models import (
+    DamageAssessment,
     Decision,
     Discrepancy,
     DiscrepancyType,
     Escalation,
     Event,
     EventType,
+    GoodsReceiptDocument,
+    GRLine,
     Photo,
+    QualityNotification,
     SpokenLine,
 )
 
@@ -453,6 +458,104 @@ async def event_stream(last_event_id: int = 0):
             await asyncio.sleep(1)
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+# --- Export endpoints ---
+
+@router.get("/deliveries/{delivery_id}/export/gr")
+async def export_goods_receipt(delivery_id: str):
+    """Export a GoodsReceiptDocument as JSON for SAP goods receipt posting."""
+    store = get_store()
+    delivery = store.get_delivery(delivery_id)
+    if not delivery:
+        raise HTTPException(status_code=404, detail="Delivery not found")
+
+    events = store.get_events(delivery_id)
+    today = date.today()
+
+    # Aggregate LINE_LOGGED events by PO item (EBELP), summing quantities
+    lines_by_ebelp: dict[str, GRLine] = {}
+    for event in events:
+        if event.type != EventType.LINE_LOGGED:
+            continue
+        data = event.data
+        ebelp = data.get("po_line")
+        if not ebelp:
+            continue
+        qty = data.get("this_qty", 0.0)
+        if ebelp in lines_by_ebelp:
+            lines_by_ebelp[ebelp].MENGE += qty
+        else:
+            lines_by_ebelp[ebelp] = GRLine(
+                EBELN=delivery.po_number,
+                EBELP=ebelp,
+                MATNR=data.get("material_number", ""),
+                MAKTX=data.get("material_description", ""),
+                MENGE=qty,
+                MEINS=data.get("unit_of_measure", ""),
+            )
+
+    gr_doc = GoodsReceiptDocument(
+        BLDAT=today,
+        BUDAT=today,
+        lines=list(lines_by_ebelp.values()),
+    )
+    return gr_doc.model_dump(mode="json")
+
+
+@router.get("/deliveries/{delivery_id}/export/qn")
+async def export_quality_notifications(delivery_id: str):
+    """Export QualityNotifications as JSON for SAP quality management."""
+    from backend.services import get_vendor
+
+    store = get_store()
+    delivery = store.get_delivery(delivery_id)
+    if not delivery:
+        raise HTTPException(status_code=404, detail="Delivery not found")
+
+    events = store.get_events(delivery_id)
+
+    vendor = get_vendor(delivery.vendor_id)
+    vendor_name = vendor.NAME1 if vendor else delivery.vendor_id
+
+    # Index ASSESSMENT_COMPLETE, POLICY_DECISION, and PHOTO_UPLOADED events by discrepancy_id
+    assessments: dict[str, DamageAssessment] = {}
+    decisions: dict[str, str] = {}
+    photos: dict[str, list[str]] = {}
+
+    for event in events:
+        disc_id = event.data.get("discrepancy_id")
+        if not disc_id:
+            continue
+        if event.type == EventType.ASSESSMENT_COMPLETE:
+            raw = event.data.get("assessment")
+            if raw:
+                assessments[disc_id] = DamageAssessment(**raw)
+        elif event.type == EventType.POLICY_DECISION:
+            decisions[disc_id] = event.data.get("decision", "")
+        elif event.type == EventType.PHOTO_UPLOADED:
+            photos.setdefault(disc_id, []).append(event.data.get("filename", ""))
+
+    notifications: list[dict] = []
+    for event in events:
+        if event.type != EventType.DAMAGE_REPORTED:
+            continue
+        disc_data = event.data.get("discrepancy", {})
+        disc_id = disc_data.get("id", "")
+        matnr = event.data.get("material_number") or disc_data.get("material_number", "")
+        description = disc_data.get("damage_description") or event.data.get("description", "")
+
+        qn = QualityNotification(
+            MATNR=matnr,
+            vendor=vendor_name,
+            description=description,
+            damage_assessment=assessments.get(disc_id),
+            decision=decisions.get(disc_id, ""),
+            photos=photos.get(disc_id, []),
+        )
+        notifications.append(qn.model_dump(mode="json"))
+
+    return notifications
 
 
 # --- Escalation management ---

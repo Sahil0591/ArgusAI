@@ -64,12 +64,12 @@ Hands-free voice agent for warehouse goods receipt. A clerk talks through a deli
 - [x] scripts/simulate_delivery.py — full delivery end-to-end
 - [x] Acceptance: simulator runs full delivery against deployed backend
 
-### Phase 7 — Export and Handoff
-- [ ] GoodsReceiptDocument + QualityNotification export (JSON)
-- [ ] Logfire traces verified
-- [ ] README.md updated
-- [ ] DEMO.md — 2-minute demo script
-- [ ] docs/FRONTEND.md — full frontend handoff
+### Phase 7 — Export and Handoff ✅
+- [x] GoodsReceiptDocument + QualityNotification export (JSON)
+- [x] Logfire traces verified
+- [x] README.md updated
+- [x] DEMO.md — 2-minute demo script
+- [x] docs/FRONTEND.md — full frontend handoff
 
 ## Open Questions
 

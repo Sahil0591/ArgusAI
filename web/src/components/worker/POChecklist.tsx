@@ -5,10 +5,12 @@ export function POChecklist({
   poNumber,
   vendorName,
   lines,
+  onRemoveUnmatched,
 }: {
   poNumber: string;
   vendorName: string;
   lines: ReceiptLineView[];
+  onRemoveUnmatched?: (eventId: number) => Promise<void>;
 }) {
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-surface">
@@ -45,9 +47,20 @@ export function POChecklist({
                   </span>
                 )}
                 {line.unmatched && (
-                  <span className="rounded-full border border-warning-border bg-warning-bg px-2 py-0.5 text-xs font-medium text-warning">
-                    needs review
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full border border-warning-border bg-warning-bg px-2 py-0.5 text-xs font-medium text-warning">
+                      needs review
+                    </span>
+                    {line.source_event_id && onRemoveUnmatched && (
+                      <button
+                        type="button"
+                        onClick={() => onRemoveUnmatched(line.source_event_id as number)}
+                        className="text-xs text-muted-foreground underline underline-offset-2 hover:text-danger"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
                 )}
                 {matched && (
                   <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 text-success" aria-label="Matched">

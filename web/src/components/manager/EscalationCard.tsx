@@ -55,7 +55,7 @@ export function EscalationCard({
               SEVERITY_STYLES[escalation.damage_assessment.severity]
             )}
           >
-            {escalation.damage_assessment.severity} &middot; {(escalation.damage_assessment.confidence * 100).toFixed(0)}%
+            Severity: {escalation.damage_assessment.severity} &middot; Confidence: {(escalation.damage_assessment.confidence * 100).toFixed(0)}%
           </span>
         )}
       </div>

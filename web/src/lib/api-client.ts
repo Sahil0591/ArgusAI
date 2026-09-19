@@ -8,6 +8,7 @@
 import type {
   ClosePalletRequest,
   ClosePalletResponse,
+  DismissUnmatchedResponse,
   DeliveryDetail,
   DeliverySummary,
   DeliveryStatusResponse,
@@ -65,6 +66,8 @@ export const apiClient = {
     request<ReportDamageResponse>("/tools/report_damage", { method: "POST", body: JSON.stringify(body) }),
   closePallet: (body: ClosePalletRequest) =>
     request<ClosePalletResponse>("/tools/close_pallet", { method: "POST", body: JSON.stringify(body) }),
+  dismissUnmatched: (body: { delivery_id: string; event_id: number }) =>
+    request<DismissUnmatchedResponse>("/tools/dismiss_unmatched", { method: "POST", body: JSON.stringify(body) }),
   deliveryStatus: (delivery_id: string) =>
     request<DeliveryStatusResponse>(`/tools/delivery_status?delivery_id=${encodeURIComponent(delivery_id)}`),
 

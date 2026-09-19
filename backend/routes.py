@@ -46,11 +46,16 @@ class LogLineRequest(BaseModel):
     unit_of_measure: str = "CTN"
     damage_noted: str | None = None
     line_status: str = "received"
+    tool_call_id: str | None = None
     raw_transcript: str = ""
 
 class ClosePalletRequest(BaseModel):
     delivery_id: str
     pallet_number: int
+
+class DismissUnmatchedRequest(BaseModel):
+    delivery_id: str
+    event_id: int
 
 class ReportDamageRequest(BaseModel):
     delivery_id: str
@@ -212,6 +217,7 @@ async def tool_log_line(req: LogLineRequest):
             unit_of_measure=req.unit_of_measure,
             damage_noted=req.damage_noted,
             line_status=req.line_status,
+            tool_call_id=req.tool_call_id,
             raw_transcript=req.raw_transcript,
         )
         return service.log_line(spoken)
@@ -236,6 +242,11 @@ async def tool_log_line(req: LogLineRequest):
 async def tool_close_pallet(req: ClosePalletRequest):
     service = get_service()
     return service.close_pallet(req.delivery_id, req.pallet_number)
+
+
+@router.post("/tools/dismiss_unmatched")
+async def tool_dismiss_unmatched(req: DismissUnmatchedRequest):
+    return get_service().dismiss_unmatched(req.delivery_id, req.event_id)
 
 
 @router.post("/tools/report_damage")

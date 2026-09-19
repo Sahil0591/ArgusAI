@@ -128,6 +128,7 @@ export interface LineLoggedEventData {
   this_qty: number;
   missing_qty?: number;
   line_status?: "received" | "missing" | "unmatched";
+  dismisses_event_id?: number;
   unit_of_measure: string;
   pallet_number: number | null;
   discrepancies: Discrepancy[];
@@ -224,6 +225,7 @@ export interface LogLineRequest {
   unit_of_measure?: string;
   damage_noted?: string;
   line_status?: "received" | "missing";
+  tool_call_id?: string;
   raw_transcript?: string;
 }
 
@@ -236,6 +238,7 @@ export interface LogLineResponse {
   material_number?: string;
   material_description?: string;
   line_status?: "received" | "missing";
+  duplicate?: boolean;
   discrepancies?: Discrepancy[];
   photo_requested?: boolean;
   error?: boolean;
@@ -267,6 +270,13 @@ export interface ClosePalletResponse {
   pallet_number?: number;
   line_count?: number;
   error?: boolean;
+}
+
+export interface DismissUnmatchedResponse {
+  speech: string;
+  event_id?: number;
+  error?: boolean;
+  duplicate?: boolean;
 }
 
 export interface DeliveryStatusLine {
@@ -339,6 +349,7 @@ export interface ReceiptLineView {
   received_qty: number;
   missing_qty: number;
   unmatched?: boolean;
+  source_event_id?: number;
   unit_of_measure: string;
   discrepancies: Discrepancy[];
 }

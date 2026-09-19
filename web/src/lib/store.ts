@@ -23,8 +23,11 @@ export const useAppStore = create<AppState>((set) => ({
   lastEventId: 0,
 
   addEvent: (event) =>
-    set((state) => ({
-      events: [...state.events, event].slice(-MAX_EVENTS),
-      lastEventId: Math.max(state.lastEventId, event.event_id),
-    })),
+    set((state) => {
+      if (state.events.some((existing) => existing.event_id === event.event_id)) return state;
+      return {
+        events: [...state.events, event].slice(-MAX_EVENTS),
+        lastEventId: Math.max(state.lastEventId, event.event_id),
+      };
+    }),
 }));

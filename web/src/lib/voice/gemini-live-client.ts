@@ -206,7 +206,8 @@ export class GeminiLiveSession {
   }
 
   private async dispatchToolCall(call: ToolCallPart) {
-    const args: Record<string, unknown> = { ...call.args, delivery_id: this.deliveryId };
+    const toolCallId = call.id || `${call.name}:${JSON.stringify(call.args)}`;
+    const args: Record<string, unknown> = { ...call.args, delivery_id: this.deliveryId, tool_call_id: toolCallId };
     let result: unknown;
     try {
       switch (call.name) {

@@ -40,6 +40,12 @@ export function deriveReceiptLines(po_number: string, events: DeliveryEvent[]): 
   );
 
   const seenDiscrepancyIds = new Set<string>();
+  const dismissedUnmatched = new Set(
+    events
+      .filter((event) => event.type === "line_logged")
+      .map((event) => (event.data as unknown as LineLoggedEventData).dismisses_event_id)
+      .filter((id): id is number => typeof id === "number"),
+  );
   const addDiscrepancy = (poLine: string | undefined, disc: Discrepancy) => {
     if (seenDiscrepancyIds.has(disc.id)) return;
     const target = poLine ? lines.get(poLine) : undefined;
@@ -52,6 +58,7 @@ export function deriveReceiptLines(po_number: string, events: DeliveryEvent[]): 
   for (const event of events) {
     if (event.type === "line_logged") {
       const data = event.data as unknown as LineLoggedEventData;
+      if (dismissedUnmatched.has(event.id) || data.dismisses_event_id) continue;
       if (!data.po_line) {
         const key = `unmatched:${event.id}`;
         lines.set(key, {
@@ -64,6 +71,7 @@ export function deriveReceiptLines(po_number: string, events: DeliveryEvent[]): 
           unit_of_measure: data.unit_of_measure ?? "EA",
           discrepancies: [],
           unmatched: true,
+          source_event_id: event.id,
         });
         continue;
       }

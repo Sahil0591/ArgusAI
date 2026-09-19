@@ -120,6 +120,12 @@ export default function ReceivePage() {
     setBanner(logRes.speech);
   };
 
+  const handleRemoveUnmatched = async (eventId: number) => {
+    const result = await apiClient.dismissUnmatched({ delivery_id: deliveryId, event_id: eventId });
+    setBanner(result.speech);
+    refresh();
+  };
+
   const handlePhoto = async (photo: Blob) => {
     if (!pendingPhoto) return;
     const res = await apiClient.uploadPhoto(deliveryId, pendingPhoto.discrepancyId, photo);
@@ -222,7 +228,12 @@ export default function ReceivePage() {
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-4 py-6">
       <DecisionBanner message={banner} />
-      <POChecklist poNumber={delivery.po_number} vendorName={vendorName} lines={receiptLines} />
+      <POChecklist
+        poNumber={delivery.po_number}
+        vendorName={vendorName}
+        lines={receiptLines}
+        onRemoveUnmatched={handleRemoveUnmatched}
+      />
 
       {manualEntry ? (
         <MicButton onSubmit={handleLogLine} />

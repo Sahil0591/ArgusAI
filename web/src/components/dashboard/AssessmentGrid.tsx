@@ -49,7 +49,7 @@ export function AssessmentGrid({ items }: { items: AssessmentFeedItem[] }) {
                 <div className="mt-2 text-xs text-foreground/80">
                   {item.assessment && (
                     <div className="mb-1 font-medium capitalize">
-                      {item.assessment.severity} &middot; {(item.assessment.confidence * 100).toFixed(0)}%
+                      Severity: {item.assessment.severity} &middot; Confidence: {(item.assessment.confidence * 100).toFixed(0)}%
                     </div>
                   )}
                   {item.decision?.decision.replace(/_/g, " ")}

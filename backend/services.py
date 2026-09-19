@@ -93,6 +93,22 @@ class DeliveryService:
         if not po:
             return self._fail_event(spoken, "PO not found")
 
+        # Gemini may replay a function call while waiting for the tool
+        # response. The call ID makes the operation idempotent across retries.
+        if spoken.tool_call_id:
+            for event in reversed(self.store.get_events(spoken.delivery_id)):
+                if event.type == EventType.LINE_LOGGED and event.data.get("tool_call_id") == spoken.tool_call_id:
+                    return {
+                        "speech": "That line was already logged.",
+                        "event_id": event.id,
+                        "duplicate": True,
+                        "po_line": event.data.get("po_line"),
+                        "material_number": event.data.get("material_number"),
+                        "material_description": event.data.get("material_description"),
+                        "line_status": event.data.get("line_status", "received"),
+                        "discrepancies": event.data.get("discrepancies", []),
+                    }
+
         # Match to PO line
         po_line = fuzzy_match_po_line(po, spoken.material_description)
         if not po_line:
@@ -151,6 +167,7 @@ class DeliveryService:
             "missing_qty": spoken.quantity if is_missing else 0.0,
             "unit_of_measure": spoken.unit_of_measure or po_line.MEINS,
             "pallet_number": spoken.pallet_number,
+            "tool_call_id": spoken.tool_call_id,
             "discrepancies": [d.model_dump() for d in discrepancies],
         }
 
@@ -227,6 +244,24 @@ class DeliveryService:
             "pallet_number": pallet_number,
             "line_count": len(pallet_events),
         }
+
+    def dismiss_unmatched(self, delivery_id: str, event_id: int) -> dict:
+        """Hide an unmatched voice line while keeping an auditable correction event."""
+        delivery = self.store.get_delivery(delivery_id)
+        if not delivery:
+            return {"speech": "No active delivery found.", "error": True}
+        events = self.store.get_events(delivery_id)
+        original = next((e for e in events if e.id == event_id), None)
+        if not original or original.type != EventType.LINE_LOGGED or original.data.get("line_status") != "unmatched":
+            return {"speech": "That unmatched line could not be found.", "error": True}
+        if any(e.data.get("dismisses_event_id") == event_id for e in events):
+            return {"speech": "That unmatched line was already removed.", "event_id": event_id, "duplicate": True}
+        event = self.store.add_event(Event(
+            delivery_id=delivery_id,
+            type=EventType.LINE_LOGGED,
+            data={"dismisses_event_id": event_id, "line_status": "unmatched_dismissed"},
+        ))
+        return {"speech": "Unmatched line removed from the checklist.", "event_id": event.id}
 
     def report_damage(self, delivery_id: str, material_description: str, description: str, quantity: int = 1) -> dict:
         """Report damage for a material, request photo."""
@@ -321,6 +356,7 @@ class DeliveryService:
                 "this_qty": spoken.quantity,
                 "unit_of_measure": spoken.unit_of_measure,
                 "line_status": "unmatched",
+                "tool_call_id": spoken.tool_call_id,
             },
             needs_review=True,
         )

@@ -13,6 +13,7 @@ image = (
         "logfire[fastapi]>=5.1.0",
         "pydantic-ai-slim[google]>=2.45.0",
         "uvicorn>=0.53.0",
+        "python-multipart>=0.0.32",
     )
     .env({"PYTHONPATH": "/app"})
     .add_local_dir("backend", remote_path="/app/backend")

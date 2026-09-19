@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import datetime
+import os
 import traceback
+import uuid
+from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from backend import config
@@ -259,3 +262,96 @@ async def get_delivery(delivery_id: str):
         "status": delivery.status.value,
         "events": [{"id": e.id, "type": e.type.value, "data": e.data, "timestamp": e.timestamp.isoformat()} for e in events],
     }
+
+
+# --- Photo upload ---
+
+@router.post("/photos")
+async def upload_photo(
+    file: UploadFile = File(...),
+    delivery_id: str = Form(...),
+    discrepancy_id: str = Form(...),
+):
+    """Upload a damage photo, run vision assessment, return result."""
+    store = get_store()
+    service = get_service()
+
+    # Determine photo storage path
+    photos_dir = Path("/data/photos") if os.path.isdir("/data") else Path("photos")
+    photos_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save photo
+    photo_id = str(uuid.uuid4())
+    ext = Path(file.filename or "photo.jpg").suffix or ".jpg"
+    filename = f"{photo_id}{ext}"
+    filepath = photos_dir / filename
+
+    image_bytes = await file.read()
+    filepath.write_bytes(image_bytes)
+
+    # Record in DB
+    from backend.models import Event, EventType, Photo
+    photo = Photo(
+        id=photo_id,
+        delivery_id=delivery_id,
+        discrepancy_id=discrepancy_id,
+        filename=filename,
+    )
+    store.add_photo(photo)
+
+    # Write photo uploaded event
+    store.add_event(Event(
+        delivery_id=delivery_id,
+        type=EventType.PHOTO_UPLOADED,
+        data={"photo_id": photo_id, "discrepancy_id": discrepancy_id, "filename": filename},
+    ))
+
+    # Run vision assessment
+    from backend.vision import assess_damage
+
+    # Get material context from recent events
+    events = store.get_events(delivery_id)
+    material_desc = "Unknown material"
+    for e in reversed(events):
+        if e.data.get("discrepancy_id") == discrepancy_id or e.type.value == "damage_reported":
+            material_desc = e.data.get("material_description", material_desc)
+            break
+
+    content_type = file.content_type or "image/jpeg"
+    assessment = await assess_damage(image_bytes, material_desc, content_type=content_type)
+
+    if assessment:
+        # Write assessment event
+        store.add_event(Event(
+            delivery_id=delivery_id,
+            type=EventType.ASSESSMENT_COMPLETE,
+            data={
+                "photo_id": photo_id,
+                "discrepancy_id": discrepancy_id,
+                "assessment": assessment.model_dump(),
+            },
+        ))
+        return {
+            "photo_id": photo_id,
+            "assessment": assessment.model_dump(),
+            "speech": f"Photo analyzed. {assessment.description}. Severity: {assessment.severity.value}. Confidence: {assessment.confidence:.0%}.",
+        }
+    else:
+        # Vision failed - store photo, mark for review (will be escalated by policy engine)
+        store.add_event(Event(
+            delivery_id=delivery_id,
+            type=EventType.ASSESSMENT_COMPLETE,
+            data={
+                "photo_id": photo_id,
+                "discrepancy_id": discrepancy_id,
+                "assessment": None,
+                "vision_failed": True,
+            },
+            needs_review=True,
+        ))
+        return {
+            "photo_id": photo_id,
+            "assessment": None,
+            "speech": "I couldn't analyze the photo. I've saved it and flagged it for manual review.",
+            "needs_review": True,
+        }

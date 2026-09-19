@@ -44,11 +44,12 @@ Hands-free voice agent for warehouse goods receipt. A clerk talks through a deli
 - [x] Service layer with PO matching (fuzzy string match for voice input)
 - [x] Acceptance: all endpoints verified locally and deployed to Modal
 
-### Phase 4 — Photos and Vision
-- [ ] POST /photos — upload photo for pending damage report
-- [ ] Vision agent: Pydantic AI agent with Gemini Flash, output_type=DamageAssessment
-- [ ] Fallback when vision fails (store photo, escalate anyway)
-- [ ] Test with sample image (backend/seed/photos/)
+### Phase 4 — Photos and Vision ✅
+- [x] POST /photos — upload photo for pending damage report
+- [x] Vision agent: Pydantic AI agent with gemini-3.6-flash, output_type=DamageAssessment
+- [x] Fallback when vision fails (store photo, mark needs_review)
+- [x] Test with sample image (backend/seed/photos/sample_damage.jpg)
+- Note: gemini-2.5-flash deprecated, updated to gemini-3.6-flash
 
 ### Phase 5 — Policy Engine
 - [ ] PolicyConfig with configurable thresholds

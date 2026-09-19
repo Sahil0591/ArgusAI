@@ -13,6 +13,7 @@ dependencies = [
     "logfire[fastapi]>=5.1.0",
     "modal>=1.5.5",
     "pydantic-ai-slim[google]>=2.45.0",
+    "python-multipart>=0.0.32",
     "uvicorn>=0.53.0",
 ]
 

@@ -5,7 +5,7 @@
 | Purpose | Model ID | Verified |
 |---------|----------|----------|
 | Live API (voice) | `gemini-3.8-live` | Yes — listed as "Default Live API model for most low-latency voice agent experiences" on ai.google.dev/gemini-api/docs/models |
-| Vision (damage assessment) | `gemini-2.5-flash` | Yes — multimodal, supports structured output, good price-performance. `gemini-3.8-flash` also works but costs more. |
+| Vision (damage assessment) | `gemini-3.6-flash` | Yes — `gemini-2.5-flash` deprecated for new users (404). `gemini-3.6-flash` is the recommended replacement with multimodal + structured output. |
 
 ## Ephemeral Tokens (Live API)
 

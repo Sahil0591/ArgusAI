@@ -41,9 +41,6 @@ CORS_ORIGINS: list[str] = [
     if origin.strip()
 ]
 
-LOCAL_DATABASE_URL = "sqlite:///./backend/app.db"
-MODAL_SQLITE_DATABASE_URL = "sqlite:////data/argusai.db"
-
 DATABASE_URL: str | None = os.getenv("DATABASE_URL")
 
 # Backwards-compatible fallback for older local .env files.
@@ -54,12 +51,10 @@ GEMINI_LIVE_MODEL: str = os.getenv("GEMINI_LIVE_MODEL", "gemini-3.8-live")
 GEMINI_VISION_MODEL: str = os.getenv("GEMINI_VISION_MODEL", "gemini-3.6-flash")
 
 
-def database_url_for_runtime(*, modal_volume_available: bool = False) -> str:
-    """Resolve the database connection string for local and Modal runtimes."""
+def database_url_for_runtime() -> str:
+    """Resolve the database connection string."""
     if DATABASE_URL:
         return DATABASE_URL
     if DB_PATH:
         return f"sqlite:///{DB_PATH}"
-    if modal_volume_available:
-        return MODAL_SQLITE_DATABASE_URL
-    return LOCAL_DATABASE_URL
+    return "sqlite:///./backend/app.db"

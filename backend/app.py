@@ -17,12 +17,11 @@ from backend.routes import router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    import os
     from backend.store import Store
     from backend.services import DeliveryService
     from backend import routes
 
-    database_url = config.database_url_for_runtime(modal_volume_available=os.path.isdir("/data"))
+    database_url = config.database_url_for_runtime()
     store = Store(database_url=database_url)
     store.init_db()
     service = DeliveryService(store)

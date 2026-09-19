@@ -82,6 +82,21 @@ export interface QualityNotification {
   photos: string[];
 }
 
+export interface DeliveryReport {
+  delivery_id: string;
+  po_number: string;
+  status: DeliveryStatus;
+  ordered_units: number;
+  received_units: number;
+  missing_units: number;
+  missing_lines: number;
+  damaged_units: number;
+  damaged_lines: number;
+  overage_units: number;
+  pending_escalations: number;
+  resolved_escalations: number;
+}
+
 // --- Deliveries ---
 
 export interface DeliverySummary {

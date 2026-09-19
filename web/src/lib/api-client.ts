@@ -19,6 +19,7 @@ import type {
   EscalationDecisionRequest,
   EscalationDecisionResponse,
   GoodsReceiptDocument,
+  DeliveryReport,
   LiveToolsResponse,
   LiveTokenResponse,
   LogLineRequest,
@@ -58,6 +59,8 @@ export const apiClient = {
 
   exportGoodsReceipt: (id: string) => request<GoodsReceiptDocument>(`/deliveries/${id}/export/gr`),
   exportQualityNotifications: (id: string) => request<QualityNotification[]>(`/deliveries/${id}/export/qn`),
+  exportReport: (id: string) => request<DeliveryReport>(`/deliveries/${id}/export/report`),
+  photoUrl: (photoId: string) => `${API_BASE}/photos/${encodeURIComponent(photoId)}`,
 
   logLine: (body: LogLineRequest) =>
     request<LogLineResponse>("/tools/log_line", { method: "POST", body: JSON.stringify(body) }),

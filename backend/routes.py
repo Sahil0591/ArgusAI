@@ -10,6 +10,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from backend import config
@@ -432,6 +433,21 @@ async def upload_photo(
         }
 
 
+@router.get("/photos/{photo_id}")
+async def get_photo(photo_id: str):
+    """Serve stored evidence photos to dashboard clients."""
+    store = get_store()
+    photo = store.get_photo(photo_id)
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+    photos_dir = Path("/data/photos") if os.path.isdir("/data") else Path("photos")
+    filepath = photos_dir / photo.filename
+    if not filepath.is_file():
+        raise HTTPException(status_code=404, detail="Photo file not found")
+    return FileResponse(filepath)
+
+
 # --- SSE stream ---
 
 @router.get("/stream")
@@ -556,6 +572,53 @@ async def export_quality_notifications(delivery_id: str):
         notifications.append(qn.model_dump(mode="json"))
 
     return notifications
+
+
+@router.get("/deliveries/{delivery_id}/export/report")
+async def export_delivery_report(delivery_id: str):
+    """Export an operational summary alongside the SAP documents."""
+    from backend.services import get_po
+
+    store = get_store()
+    delivery = store.get_delivery(delivery_id)
+    if not delivery:
+        raise HTTPException(status_code=404, detail="Delivery not found")
+    po = get_po(delivery.po_number)
+    if not po:
+        raise HTTPException(status_code=404, detail="Purchase order not found")
+
+    received_by_line: dict[str, float] = {}
+    damaged_by_discrepancy: dict[str, float] = {}
+    for event in store.get_events(delivery_id):
+        if event.type == EventType.LINE_LOGGED and event.data.get("po_line"):
+            line = event.data["po_line"]
+            received_by_line[line] = received_by_line.get(line, 0.0) + float(event.data.get("this_qty", 0.0))
+        elif event.type == EventType.DAMAGE_REPORTED:
+            discrepancy = event.data.get("discrepancy", {})
+            discrepancy_id = discrepancy.get("id", "")
+            damaged_by_discrepancy[discrepancy_id] = float(discrepancy.get("actual_qty") or 0.0)
+
+    ordered_units = sum(line.MENGE for line in po.lines)
+    received_units = sum(received_by_line.values())
+    missing_units = sum(max(line.MENGE - received_by_line.get(line.EBELP, 0.0), 0.0) for line in po.lines)
+    missing_lines = sum(received_by_line.get(line.EBELP, 0.0) < line.MENGE for line in po.lines)
+    overage_units = sum(max(received_by_line.get(line.EBELP, 0.0) - line.MENGE, 0.0) for line in po.lines)
+    escalations = store.list_escalations(delivery_id)
+
+    return {
+        "delivery_id": delivery_id,
+        "po_number": delivery.po_number,
+        "status": delivery.status.value,
+        "ordered_units": ordered_units,
+        "received_units": received_units,
+        "missing_units": missing_units,
+        "missing_lines": missing_lines,
+        "damaged_units": sum(damaged_by_discrepancy.values()),
+        "damaged_lines": len(damaged_by_discrepancy),
+        "overage_units": overage_units,
+        "pending_escalations": sum(e.status.value == "pending" for e in escalations),
+        "resolved_escalations": sum(e.status.value != "pending" for e in escalations),
+    }
 
 
 # --- Escalation management ---

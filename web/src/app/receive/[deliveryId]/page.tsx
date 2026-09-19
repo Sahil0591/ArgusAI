@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { apiClient } from "@/lib/api-client";
 import { useEventStream } from "@/lib/use-event-stream";
 import { useAppStore } from "@/lib/store";
-import { deriveReceiptLines } from "@/lib/derive";
+import { deriveDeliveryReport, deriveReceiptLines } from "@/lib/derive";
 import { getVendor } from "@/lib/po-catalog";
 import { GeminiLiveSession } from "@/lib/voice/gemini-live-client";
 import { DecisionBanner } from "@/components/worker/DecisionBanner";
@@ -17,6 +17,7 @@ import { TranscriptPanel } from "@/components/worker/TranscriptPanel";
 import { GoodsReceiptView } from "@/components/worker/GoodsReceiptView";
 import type {
   DeliveryDetail,
+  DeliveryReport,
   EscalationDecidedEventData,
   GoodsReceiptDocument,
   QualityNotification,
@@ -39,6 +40,7 @@ export default function ReceivePage() {
   const [completed, setCompleted] = useState<{
     goodsReceipt: GoodsReceiptDocument;
     qualityNotifications: QualityNotification[];
+    report: DeliveryReport;
   } | null>(null);
   const [manualEntry, setManualEntry] = useState(false);
   const voiceSessionRef = useRef<GeminiLiveSession | null>(null);
@@ -126,13 +128,20 @@ export default function ReceivePage() {
   };
 
   const handleComplete = async () => {
+    if (!delivery) return;
+    const currentDelivery = delivery;
     setCompleting(true);
     try {
       const [goodsReceipt, qualityNotifications] = await Promise.all([
         apiClient.exportGoodsReceipt(deliveryId),
         apiClient.exportQualityNotifications(deliveryId),
       ]);
-      setCompleted({ goodsReceipt, qualityNotifications });
+      // Older Modal deployments do not have /export/report yet. Keep the
+      // completion flow usable while the new backend is being rolled out.
+      const report = await apiClient.exportReport(deliveryId).catch(() =>
+        deriveDeliveryReport(deliveryId, currentDelivery.po_number, currentDelivery.status, receiptLines, currentDelivery.events),
+      );
+      setCompleted({ goodsReceipt, qualityNotifications, report });
     } catch (err) {
       setBanner(`Couldn't complete delivery: ${(err as Error).message}`);
     } finally {
@@ -152,6 +161,16 @@ export default function ReceivePage() {
   const hasReceivedLines = receiptLines.some((l) => l.received_qty > 0);
 
   if (completed) {
+    const downloadJson = (filename: string, value: unknown) => {
+      const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    };
+
     return (
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-4 py-6">
         <div className="flex items-center gap-3">
@@ -171,6 +190,29 @@ export default function ReceivePage() {
             </p>
           </div>
         </div>
+        <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <SummaryCard label="Received" value={`${completed.report.received_units}`} detail={`of ${completed.report.ordered_units} ordered`} />
+          <SummaryCard label="Missing" value={`${completed.report.missing_units}`} detail={`${completed.report.missing_lines} line${completed.report.missing_lines === 1 ? "" : "s"}`} tone={completed.report.missing_units ? "warning" : "success"} />
+          <SummaryCard label="Damaged" value={`${completed.report.damaged_units}`} detail={`${completed.report.damaged_lines} line${completed.report.damaged_lines === 1 ? "" : "s"}`} tone={completed.report.damaged_units ? "danger" : "success"} />
+          <SummaryCard label="Over-received" value={`${completed.report.overage_units}`} detail="units" tone={completed.report.overage_units ? "accent" : "success"} />
+        </section>
+        <section className="rounded-lg border border-border bg-surface p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-medium text-foreground">Delivery report</h2>
+              <p className="text-sm text-muted-foreground">
+                {completed.report.pending_escalations > 0
+                  ? `${completed.report.pending_escalations} exception${completed.report.pending_escalations === 1 ? "" : "s"} still need manager review.`
+                  : "All recorded exceptions have been resolved or auto-accepted."}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => downloadJson(`${deliveryId}-report.json`, completed.report)} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-secondary">Download report</button>
+              <button onClick={() => downloadJson(`${deliveryId}-goods-receipt.json`, completed.goodsReceipt)} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-secondary">Download GR JSON</button>
+              <button onClick={() => downloadJson(`${deliveryId}-quality-notifications.json`, completed.qualityNotifications)} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-secondary">Download QN JSON</button>
+            </div>
+          </div>
+        </section>
         <GoodsReceiptView goodsReceipt={completed.goodsReceipt} qualityNotifications={completed.qualityNotifications} />
       </main>
     );
@@ -212,5 +254,32 @@ export default function ReceivePage() {
       )}
       <TranscriptPanel events={events} />
     </main>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+  detail,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  tone?: "neutral" | "success" | "warning" | "danger" | "accent";
+}) {
+  const styles = {
+    neutral: "border-border bg-surface",
+    success: "border-success-border bg-success-bg",
+    warning: "border-warning-border bg-warning-bg",
+    danger: "border-danger-border bg-danger-bg",
+    accent: "border-accent/30 bg-accent/10",
+  };
+  return (
+    <div className={`rounded-lg border p-3 ${styles[tone]}`}>
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{value}</div>
+      <div className="text-xs text-muted-foreground">{detail}</div>
+    </div>
   );
 }

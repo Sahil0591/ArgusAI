@@ -16,6 +16,7 @@ import type {
   PhotoUploadedEventData,
   PolicyDecisionEventData,
   ReceiptLineView,
+  DeliveryReport,
 } from "./types";
 
 export function deriveReceiptLines(po_number: string, events: DeliveryEvent[]): ReceiptLineView[] {
@@ -68,6 +69,49 @@ export function deriveReceiptLines(po_number: string, events: DeliveryEvent[]): 
   }
 
   return [...lines.values()];
+}
+
+export function deriveDeliveryReport(
+  delivery_id: string,
+  po_number: string,
+  status: DeliveryReport["status"],
+  lines: ReceiptLineView[],
+  events: DeliveryEvent[],
+): DeliveryReport {
+  const damaged = new Set<string>();
+  let damagedUnits = 0;
+  let pendingEscalations = 0;
+  let resolvedEscalations = 0;
+
+  for (const event of events) {
+    if (event.type === "damage_reported") {
+      const data = event.data as unknown as DamageReportedEventData;
+      if (!damaged.has(data.discrepancy.id)) {
+        damaged.add(data.discrepancy.id);
+        damagedUnits += data.discrepancy.actual_qty ?? 0;
+      }
+    }
+    if (event.type === "escalation_created") pendingEscalations += 1;
+    if (event.type === "escalation_decided") {
+      pendingEscalations = Math.max(0, pendingEscalations - 1);
+      resolvedEscalations += 1;
+    }
+  }
+
+  return {
+    delivery_id,
+    po_number,
+    status,
+    ordered_units: lines.reduce((sum, line) => sum + line.ordered_qty, 0),
+    received_units: lines.reduce((sum, line) => sum + line.received_qty, 0),
+    missing_units: lines.reduce((sum, line) => sum + Math.max(line.ordered_qty - line.received_qty, 0), 0),
+    missing_lines: lines.filter((line) => line.received_qty < line.ordered_qty).length,
+    damaged_units: damagedUnits,
+    damaged_lines: damaged.size,
+    overage_units: lines.reduce((sum, line) => sum + Math.max(line.received_qty - line.ordered_qty, 0), 0),
+    pending_escalations: pendingEscalations,
+    resolved_escalations: resolvedEscalations,
+  };
 }
 
 interface EnrichmentMaps {

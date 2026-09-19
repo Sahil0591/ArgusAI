@@ -37,14 +37,18 @@ export function useEventStream() {
 
     const connect = () => {
       if (cancelled) return;
-      source = new EventSource(apiClient.streamUrl(lastEventId));
+      // A browser may deliver multiple error notifications for one broken
+      // EventSource. Never let those errors create overlapping reconnects.
+      if (source || reconnectTimer) return;
+      const nextSource = new EventSource(apiClient.streamUrl(lastEventId));
+      source = nextSource;
 
-      source.onopen = () => {
+      nextSource.onopen = () => {
         backoff = INITIAL_BACKOFF_MS;
       };
 
       for (const type of EVENT_TYPES) {
-        source.addEventListener(type, (e: MessageEvent) => {
+        nextSource.addEventListener(type, (e: MessageEvent) => {
           try {
             const event = JSON.parse(e.data) as StreamEvent;
             lastEventId = Math.max(lastEventId, event.event_id);
@@ -55,9 +59,11 @@ export function useEventStream() {
         });
       }
 
-      source.onerror = () => {
-        source?.close();
+      nextSource.onerror = () => {
+        nextSource.close();
+        if (source === nextSource) source = null;
         if (cancelled) return;
+        if (reconnectTimer) return;
         reconnectTimer = setTimeout(connect, backoff);
         backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
       };
@@ -68,7 +74,9 @@ export function useEventStream() {
     return () => {
       cancelled = true;
       source?.close();
+      source = null;
       if (reconnectTimer) clearTimeout(reconnectTimer);
+      reconnectTimer = null;
     };
   }, [addEvent]);
 }

@@ -234,3 +234,15 @@ class Store:
             )
             for r in rows
         ]
+
+    def get_photo(self, photo_id: str) -> Photo | None:
+        row = self.conn.execute(
+            "SELECT * FROM photos WHERE id = ?", (photo_id,)
+        ).fetchone()
+        if not row:
+            return None
+        return Photo(
+            id=row["id"], delivery_id=row["delivery_id"],
+            discrepancy_id=row["discrepancy_id"], filename=row["filename"],
+            uploaded_at=datetime.fromisoformat(row["uploaded_at"]),
+        )

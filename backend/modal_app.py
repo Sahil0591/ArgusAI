@@ -14,8 +14,8 @@ image = (
         "pydantic-ai-slim[google]>=2.45.0",
         "uvicorn>=0.53.0",
     )
-    .add_local_dir("backend", remote_path="/app/backend")
     .env({"PYTHONPATH": "/app"})
+    .add_local_dir("backend", remote_path="/app/backend")
 )
 
 @app.function(
@@ -25,8 +25,8 @@ image = (
     min_containers=1,
     max_containers=1,
     timeout=3600,
-    allow_concurrent_inputs=100,
 )
+@modal.concurrent(max_inputs=100)
 @modal.asgi_app()
 def web():
     from backend.app import app as fastapi_app

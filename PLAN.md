@@ -22,12 +22,13 @@ Hands-free voice agent for warehouse goods receipt. A clerk talks through a deli
 - [x] Write docs/api-notes.md (verified Gemini model IDs and API details)
 - [x] Confirm git remote exists
 
-### Phase 1 — Skeleton
-- [ ] Create backend/ package structure
-- [ ] FastAPI app with /health, CORS
-- [ ] Modal app file (min_containers=1, max_containers=1, Volume)
-- [ ] .env.example
-- [ ] Deploy to Modal, confirm /health responds
+### Phase 1 — Skeleton ✅
+- [x] Create backend/ package structure
+- [x] FastAPI app with /health, CORS
+- [x] Modal app file (min_containers=1, max_containers=1, Volume)
+- [x] .env.example
+- [x] Deploy to Modal, confirm /health responds
+- Deployed URL: https://sahil0591-argusai--argusai-web.modal.run
 
 ### Phase 2 — Data and Models
 - [ ] Seed data: vendors, materials, purchase orders (backend/seed/*.json)

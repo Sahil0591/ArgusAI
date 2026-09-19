@@ -30,7 +30,8 @@ The clerk never touches a screen. The system handles logging, decision-making, a
 | Real-time voice | Gemini Live API (gemini-3.8-live) |
 | Vision damage assessment | Gemini Flash (gemini-3.6-flash) |
 | Structured agent outputs | Pydantic AI (damage assessment, claim drafting) |
-| Backend | FastAPI, deployed on Modal (single container, SQLite on Volume) |
+| Backend | FastAPI, deployed on Modal |
+| Database | Local SQLite, production cloud Postgres via `DATABASE_URL` |
 | Observability | Logfire |
 | Frontend | Web app (separate, see `web/`) |
 
@@ -75,9 +76,9 @@ docs/             API notes and frontend handoff
 **Prerequisites**: Python 3.12+, [uv](https://docs.astral.sh/uv/), a Gemini API key.
 
 ```bash
-# 1. Set up environment variables
-cp .env.example .env
-# Edit .env and fill in GEMINI_API_KEY
+# 1. Set up backend environment variables
+cp backend/.env.example backend/.env
+# Edit backend/.env and fill in GEMINI_API_KEY
 
 # 2. Install dependencies
 uv sync
@@ -89,18 +90,22 @@ uv run uvicorn backend.app:app --reload
 uv run python scripts/simulate_delivery.py
 ```
 
-The API will be available at `http://localhost:8000`. See `docs/` for endpoint reference.
+The API will be available at `http://localhost:8000`. Local SQLite data is stored at `backend/app.db` unless `DATABASE_URL` points elsewhere. See `docs/` for endpoint reference.
 
 ---
 
 ## Deploying to Modal
 
 ```bash
-# 1. Create the Modal secret
-modal secret create argusai-secrets GEMINI_API_KEY=your_key_here
+# 1. Create the Modal secret with a cloud database URL and frontend CORS origin
+python -m modal secret create argusai-secrets \
+  DATABASE_URL="postgresql+psycopg://USER:PASSWORD@HOST/DB?sslmode=require" \
+  GEMINI_API_KEY="your_key_here" \
+  CORS_ORIGINS="https://<your-vercel-app>.vercel.app" \
+  --force
 
 # 2. Deploy
-modal deploy backend/modal_app.py --env ArgusAI
+python -m modal deploy backend/modal_app.py
 ```
 
-Modal provisions a single container with a persistent Volume for SQLite. No external database required.
+Modal containers are ephemeral, so production database state should live in the external database configured by `DATABASE_URL`. The app still mounts a Modal Volume at `/data` for SQLite fallback and uploaded photos. See `docs/DEPLOYMENT_ENV.md` for Vercel, Modal, and CORS templates.

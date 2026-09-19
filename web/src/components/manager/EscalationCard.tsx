@@ -19,6 +19,7 @@ export function EscalationCard({
   onDecide: (id: string, decision: "accepted" | "rejected") => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
+  const [photoUnavailable, setPhotoUnavailable] = useState(false);
   const pending = escalation.status === "pending";
 
   const handle = async (decision: "accepted" | "rejected") => {
@@ -59,17 +60,26 @@ export function EscalationCard({
         )}
       </div>
 
-      {escalation.photo_id && (
+      {escalation.photo_id && !photoUnavailable && (
         <a href={apiClient.photoUrl(escalation.photo_id)} target="_blank" rel="noreferrer" className="group overflow-hidden rounded-lg border border-border bg-black">
           {/* Evidence is served by the backend at runtime, so Next cannot optimize it statically. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={apiClient.photoUrl(escalation.photo_id)}
             alt={`Evidence photo for ${escalation.material_description}`}
+            loading="lazy"
+            decoding="async"
+            onError={() => setPhotoUnavailable(true)}
             className="max-h-64 w-full object-contain transition-transform group-hover:scale-[1.02]"
           />
           <div className="bg-surface-secondary px-3 py-2 text-xs text-muted-foreground">Open evidence photo</div>
         </a>
+      )}
+
+      {escalation.photo_id && photoUnavailable && (
+        <div className="rounded-lg border border-dashed border-border bg-surface-secondary px-3 py-3 text-sm text-muted-foreground">
+          Unavailable
+        </div>
       )}
 
       {escalation.policy_decision && <p className="text-sm text-foreground/80">{escalation.policy_decision.reason}</p>}

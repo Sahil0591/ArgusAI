@@ -47,6 +47,7 @@ export class GeminiLiveSession {
   private deliveryId: string;
   private callbacks: GeminiLiveCallbacks;
   private stopped = false;
+  private handledToolCalls = new Set<string>();
 
   constructor(deliveryId: string, callbacks: GeminiLiveCallbacks) {
     this.deliveryId = deliveryId;
@@ -112,6 +113,7 @@ export class GeminiLiveSession {
 
   stop() {
     this.stopped = true;
+    this.handledToolCalls.clear();
     this.ws?.close();
     this.ws = null;
     this.micStream?.getTracks().forEach((t) => t.stop());
@@ -141,7 +143,13 @@ export class GeminiLiveSession {
   }
 
   private async setupAudio() {
-    this.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    this.micStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
 
     this.captureContext = new AudioContext({ sampleRate: INPUT_SAMPLE_RATE });
     await this.captureContext.audioWorklet.addModule("/worklets/capture-processor.js");
@@ -186,6 +194,12 @@ export class GeminiLiveSession {
     const toolCall = msg.toolCall as { functionCalls?: ToolCallPart[] } | undefined;
     if (toolCall?.functionCalls) {
       for (const call of toolCall.functionCalls) {
+        // Live API messages can be replayed while a tool response is in
+        // flight. Replaying log_line would create a second receipt line.
+        // Function-call IDs are stable across those replayed messages.
+        const callKey = call.id || `${call.name}:${JSON.stringify(call.args)}`;
+        if (this.handledToolCalls.has(callKey)) continue;
+        this.handledToolCalls.add(callKey);
         this.dispatchToolCall(call);
       }
     }

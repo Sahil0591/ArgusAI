@@ -72,13 +72,41 @@ export default function DashboardPage() {
   // effect — new events land asynchronously via this listener.
   useEffect(() => {
     let processedCount = useAppStore.getState().events.length;
-    return useAppStore.subscribe((state) => {
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let refreshInFlight = false;
+    let refreshQueued = false;
+
+    const scheduleRefresh = () => {
+      refreshQueued = true;
+      if (refreshTimer) return;
+      refreshTimer = setTimeout(async () => {
+        refreshTimer = null;
+        if (refreshInFlight || !refreshQueued) return;
+        refreshQueued = false;
+        refreshInFlight = true;
+        try {
+          await refresh();
+        } catch {
+          // A transient refresh failure should not create a request loop.
+        } finally {
+          refreshInFlight = false;
+          if (refreshQueued) scheduleRefresh();
+        }
+      }, 250);
+    };
+
+    const unsubscribe = useAppStore.subscribe((state) => {
       const newEvents = state.events.slice(processedCount);
       processedCount = state.events.length;
       if (newEvents.some((e) => REFRESH_ON.has(e.type))) {
-        refresh().catch(() => {});
+        scheduleRefresh();
       }
     });
+
+    return () => {
+      unsubscribe();
+      if (refreshTimer) clearTimeout(refreshTimer);
+    };
   }, [refresh]);
 
   const handleDecide = async (id: string, decision: "accepted" | "rejected") => {

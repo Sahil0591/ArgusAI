@@ -30,11 +30,11 @@ Hands-free voice agent for warehouse goods receipt. A clerk talks through a deli
 - [x] Deploy to Modal, confirm /health responds
 - Deployed URL: https://sahil0591-argusai--argusai-web.modal.run
 
-### Phase 2 — Data and Models
-- [ ] Seed data: vendors, materials, purchase orders (backend/seed/*.json)
-- [ ] All Pydantic models (SpokenLine, ReceiptLine, Discrepancy, DamageAssessment, PolicyConfig, PolicyDecision, SupplierClaim, GoodsReceiptDocument, QualityNotification)
-- [ ] SQLite store with append-only event log
-- [ ] pytest unit tests for models and store
+### Phase 2 — Data and Models ✅
+- [x] Seed data: vendors, materials, purchase orders (backend/seed/*.json)
+- [x] All Pydantic models (SpokenLine, ReceiptLine, Discrepancy, DamageAssessment, PolicyConfig, PolicyDecision, SupplierClaim, GoodsReceiptDocument, QualityNotification)
+- [x] SQLite store with append-only event log
+- [x] pytest unit tests for models and store (21 passed)
 
 ### Phase 3 — Voice Backend
 - [ ] POST /live/token — ephemeral Gemini Live token

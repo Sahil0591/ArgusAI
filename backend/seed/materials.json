@@ -1,0 +1,12 @@
+[
+  { "MATNR": "MAT-001", "MAKTX": "M8 Hex Bolt Grade 8.8", "MEINS": "CTN", "NETPR": 18.50 },
+  { "MATNR": "MAT-002", "MAKTX": "M10 Hex Bolt Grade 10.9", "MEINS": "CTN", "NETPR": 24.00 },
+  { "MATNR": "MAT-003", "MAKTX": "M8 Hex Nut DIN 934 Zinc", "MEINS": "CTN", "NETPR": 9.75 },
+  { "MATNR": "MAT-004", "MAKTX": "M10 Flat Washer DIN 125", "MEINS": "PKG", "NETPR": 7.20 },
+  { "MATNR": "MAT-005", "MAKTX": "M12 Spring Lock Washer", "MEINS": "PKG", "NETPR": 11.40 },
+  { "MATNR": "MAT-006", "MAKTX": "DN50 PN16 Blind Flange Steel", "MEINS": "PC", "NETPR": 85.00 },
+  { "MATNR": "MAT-007", "MAKTX": "DN80 PN25 Weld Neck Flange", "MEINS": "PC", "NETPR": 142.00 },
+  { "MATNR": "MAT-008", "MAKTX": "PTFE Spiral Wound Gasket DN50", "MEINS": "PC", "NETPR": 22.60 },
+  { "MATNR": "MAT-009", "MAKTX": "SKF 6205-2RS Deep Groove Ball Bearing", "MEINS": "PC", "NETPR": 449.00 },
+  { "MATNR": "MAT-010", "MAKTX": "M6 Pan Head Machine Screw A2", "MEINS": "PKG", "NETPR": 5.90 }
+]
